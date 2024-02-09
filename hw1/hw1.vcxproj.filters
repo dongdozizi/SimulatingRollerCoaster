@@ -36,6 +36,9 @@
     <ClCompile Include="..\openGLHelper\vao.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\openGLHelper\ebo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\openGLHelper\glutHeader.h">

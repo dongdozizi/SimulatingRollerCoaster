@@ -6,7 +6,7 @@
 
 using namespace std;
 
-EBO::EBO(int numElements_, const unsigned int * data,  const GLenum usage) : numElements(numElements_)
+EBO::EBO(int numElements_, const unsigned int * data,const GLenum usage):numElements(numElements_)
 {
     // Create the EBO handle 
     glGenBuffers(1, &handle);

@@ -17,6 +17,7 @@
 
 #include <iostream>
 #include <cstring>
+#include <cmath>
 
 #if defined(WIN32) || defined(_WIN32)
     #ifdef _DEBUG
@@ -51,6 +52,8 @@ float eyeVec[3];
 float focusVec[3];
 float upVec[3];
 
+// Rotate the camera
+float focusRotate[3] = { 0.0f,0.0f,0.0f };
 // Transformations of the terrain.
 float terrainRotate[3] = { 0.0f, 0.0f, 0.0f }; 
 // terrainRotate[0] gives the rotation around x-axis (in degrees)
@@ -126,10 +129,11 @@ void idleFunc()
 
         frameCount = 0;
 
-        cout<<"\nTranslate ";
-        for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" ｜ Rotate ";
+        cout<<"\n Translate ";
+        for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" | Rotate ";
         for(int i=0;i<3;i++) cout<<terrainRotate[i]<<" ";cout<<" | Scale ";
-        for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<"\n";
+        for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<" | Focus Rotate ";
+        for (int i = 0; i < 3; i++) cout << focusRotate[i] << " "; cout << "\n";
 
         lastTime = currentTime;
     }
@@ -214,6 +218,12 @@ void mouseMotionDragFunc(int x, int y)
 
 void mouseMotionFunc(int x, int y)
 {
+    // the change in mouse position since the last invocation of this function
+    int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
+    if (!leftMouseButton && !middleMouseButton && !rightMouseButton &&enableCameraMov) {
+        focusRotate[0] = mousePosDelta[1]*0.3f;
+        focusRotate[1] = mousePosDelta[0]*0.3f;
+    }
     // Mouse has moved.
     // Store the new mouse position.
     mousePos[0] = x;
@@ -351,12 +361,30 @@ void displayFunc()
             eyeVec[i]+=1.0*speed[1]*verticalVec[i];
         }
     }
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+
+    // Modify the focus vector.
+    matrix.LoadIdentity();
+    matrix.Rotate(focusRotate[0], 1.0, 0.0, 0.0);
+    matrix.Rotate(focusRotate[1], 0.0, 1.0, 0.0);
+    //matrix.Rotate(focusRotate[1], 0.0, 0.0, 1.0);
+    float rotateMatrix[16], tempFocus[3] = { 0 };
+    matrix.GetMatrix(rotateMatrix);
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 4; j++) {
+            tempFocus[i] += rotateMatrix[i*4+j] * focusVec[j];
+        }
+    }
+    for (int i = 0; i < 3; i++) {
+        focusVec[i] = tempFocus[i];
+        focusRotate[i] = 0;
+    }
+    float sum = 0;
+    for (int i = 0; i < 3; i++) sum+=focusVec[i] * focusVec[i];
+    for(int i=0;i<3;i++) 
 
     // Set up the camera position, focus point, and the up vector.
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    
     matrix.LoadIdentity();
-    
     // View
     matrix.LookAt(eyeVec[0],eyeVec[1],eyeVec[2],
                   eyeVec[0]+focusVec[0],eyeVec[1]+focusVec[1],eyeVec[2]+focusVec[2],
@@ -484,8 +512,8 @@ void initLine(float* positions,float* colors){
     }
 
     //We can still use the positions and colors since we use elements array
-    vboVerticesLine = new VBO(numVerticesLine, 3, positions, GL_STATIC_DRAW); // 3 values per position
-    vboColorsLine = new VBO(numVerticesLine, 4, colors, GL_STATIC_DRAW); // 4 values per color
+    vboVerticesLine = new VBO(numVerticesPoint, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColorsLine = new VBO(numVerticesPoint, 4, colors, GL_STATIC_DRAW); // 4 values per color, using number of point
     vaoLine = new VAO();
     
     vaoLine->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesLine, "position");
@@ -515,8 +543,8 @@ void initTriangle(float* positions,float* colors){
     }
 
     //We can still use the positions and colors since we use elements array
-    vboVerticesTriangle = new VBO(numVerticesTriangle, 3, positions, GL_STATIC_DRAW); // 3 values per position
-    vboColorsTriangle = new VBO(numVerticesTriangle, 4, colors, GL_STATIC_DRAW); // 4 values per color
+    vboVerticesTriangle = new VBO(numVerticesPoint, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColorsTriangle = new VBO(numVerticesPoint, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
     vaoTriangle = new VAO();
     
     vaoTriangle->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesTriangle, "position");
