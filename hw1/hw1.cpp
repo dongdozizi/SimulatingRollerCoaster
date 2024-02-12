@@ -333,13 +333,13 @@ void keyboardFunc(unsigned char key, int x, int y)
             renderType=4;
         break;
 
-        case '0': //Clear the transformation matrix
+        case 'c': //Clear the transformation matrix
             terrainRotate[0]=terrainRotate[1]=terrainRotate[2]=0.0;
             terrainScale[0]=terrainScale[1]=terrainScale[2]=1.0;
             terrainTranslate[0]=terrainTranslate[1]=terrainTranslate[2]=0.0;
         break;
 
-        case '9': //Enable Moving the camera
+        case 'v': //Enable Moving the camera
             speed[0]=speed[1]=0.0;
             if(enableCameraMov) enableCameraMov=false;
             else enableCameraMov=true;
@@ -447,7 +447,7 @@ void calcPosColors(float* positions,float* colors){
     for (int i = 0; i < heightmapImage->getHeight(); i++) {
         for (int j = 0,pos=i*heightmapImage->getWidth()*3; j < heightmapImage->getWidth(); j++,pos+=3) {
             positions[pos] = i-1.0*(heightmapImage->getHeight() - 1.0)/2.0;
-            positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0*50.0-25.0;
+            positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0*heightmapImage->getWidth()/5.0-heightmapImage->getWidth()/10.0;
             positions[pos + 2] = -j+1.0*(heightmapImage->getWidth() - 1.0)/2.0;
         }
     }
