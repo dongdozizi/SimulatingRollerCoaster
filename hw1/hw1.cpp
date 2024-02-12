@@ -133,7 +133,8 @@ void idleFunc()
         for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" | Rotate ";
         for(int i=0;i<3;i++) cout<<terrainRotate[i]<<" ";cout<<" | Scale ";
         for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<" | Focus Rotate ";
-        for (int i = 0; i < 3; i++) cout << focusRotate[i] << " "; cout << "\n";
+        for (int i = 0; i < 3; i++) cout << focusRotate[i] << " "; cout << " | FocuseVec ";
+        for (int i = 0; i < 3; i++) cout << focusVec[i] << " "; cout << "\n";
 
         lastTime = currentTime;
     }
@@ -365,7 +366,7 @@ void displayFunc()
 
     // Modify the focus vector.
     matrix.LoadIdentity();
-    matrix.Rotate(focusRotate[0], 1.0, 0.0, 0.0);
+    matrix.Rotate(focusRotate[0], -focusVec[2], 0.0, focusVec[0]);
     matrix.Rotate(focusRotate[1], 0.0, 1.0, 0.0);
     //matrix.Rotate(focusRotate[1], 0.0, 0.0, 1.0);
     float rotateMatrix[16], tempFocus[3] = { 0 };
