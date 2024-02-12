@@ -368,9 +368,11 @@ void displayFunc()
     matrix.LoadIdentity();
     matrix.Rotate(focusRotate[0], -focusVec[2], 0.0, focusVec[0]);
     matrix.Rotate(focusRotate[1], 0.0, 1.0, 0.0);
-    //matrix.Rotate(focusRotate[1], 0.0, 0.0, 1.0);
+
     float rotateMatrix[16], tempFocus[3] = { 0 };
     matrix.GetMatrix(rotateMatrix);
+    
+    // Doing matrix vector multiplication
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 4; j++) {
             tempFocus[i] += rotateMatrix[i*4+j] * focusVec[j];
@@ -380,9 +382,10 @@ void displayFunc()
         focusVec[i] = tempFocus[i];
         focusRotate[i] = 0;
     }
+    // Normalized the vector;
     float sum = 0;
     for (int i = 0; i < 3; i++) sum+=focusVec[i] * focusVec[i];
-    for(int i=0;i<3;i++) 
+    for (int i = 0; i < 3; i++)  focusVec[i] /= sqrt(sum);
 
     // Set up the camera position, focus point, and the up vector.
     matrix.LoadIdentity();
