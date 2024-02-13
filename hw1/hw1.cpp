@@ -495,14 +495,14 @@ void displayFunc()
 void calcPosColors(float* positions,float* colors){
     // maximum of height and width, for normalizatoin
     float maxHW = max(heightmapImage->getHeight() - 1.0, heightmapImage->getWidth() - 1.0);
-    cout << heightmapImage->getHeight() << " " << heightmapImage->getWidth() << "\n";
+    cout << heightmapImage->getHeight() << " " << heightmapImage->getWidth() << " "<<heightmapImage->getBytesPerPixel()<<"\n";
     if (heightmapImage->getBytesPerPixel() == 1) {
         //Calculating points positions, the height range is [0.0,1.0] for scale\exponent | x range is [-1.0,1.0] | z range is [-1.0,1.0]
         for (int i = 0; i < heightmapImage->getHeight(); i++) {
             for (int j = 0, pos = i * heightmapImage->getWidth() * 3; j < heightmapImage->getWidth(); j++, pos += 3) {
-                positions[pos] = (2.0 * i - (heightmapImage->getHeight() - 1.0)) / maxHW;
-                positions[pos + 1] = 1.0 * heightmapImage->getPixel(i, j, 0) / 255.0f;
-                positions[pos + 2] = (-j * 2.0 + (heightmapImage->getWidth() - 1.0)) / maxHW;
+                positions[pos] = (j * 2.0 - (heightmapImage->getWidth() - 1.0)) / maxHW;
+                positions[pos + 1] = 1.0 * heightmapImage->getPixel(j, i, 0) / 255.0f;
+                positions[pos + 2] = (-2.0 * i + (heightmapImage->getHeight() - 1.0)) / maxHW;
             }
         }
     }
@@ -510,13 +510,13 @@ void calcPosColors(float* positions,float* colors){
         //Calculating points positions, the height range is [0.0,1.0] for scale\exponent | x range is [-1.0,1.0] | z range is [-1.0,1.0]
         for (int i = 0; i < heightmapImage->getHeight(); i++) {
             for (int j = 0, pos = i * heightmapImage->getWidth() * 3; j < heightmapImage->getWidth(); j++, pos += 3) {
-                positions[pos] = (2.0 * i - (heightmapImage->getHeight() - 1.0)) / maxHW;
+                positions[pos] = (j * 2.0 - (heightmapImage->getWidth() - 1.0)) / maxHW;
                 // Transform the RGB to Grayscale by using 0.299 R + 0.587 G + 0.114 B
                 //cout << pos << " ";
-                positions[pos + 1] = (  0.299 * heightmapImage->getPixel(i, j, 0)+
-                                        0.587 * heightmapImage->getPixel(i, j, 1)+
-                                        0.114 * heightmapImage->getPixel(i, j, 2))/ 255.0f;
-                positions[pos + 2] = (-j * 2.0 + (heightmapImage->getWidth() - 1.0)) / maxHW;
+                positions[pos + 1] = (  0.299 * heightmapImage->getPixel(j, i, 0)+
+                                        0.587 * heightmapImage->getPixel(j, i, 1)+
+                                        0.114 * heightmapImage->getPixel(j, i, 2))/ 255.0f;
+                positions[pos + 2] = (-2.0 * i + (heightmapImage->getHeight() - 1.0)) / maxHW;
             }
         }
     }
