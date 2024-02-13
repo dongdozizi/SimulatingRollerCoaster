@@ -70,28 +70,40 @@ char windowTitle[512] = "CSCI 420 Homework 1";
 // Stores the image loaded from disk.
 ImageIO * heightmapImage;
 
-// Number of vertices in the single triangle (starter code).
-int numVerticesPoint;
-int numVerticesLine;
-int numVerticesTriangle;
-
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
 PipelineProgram * pipelineProgram = nullptr;
+
+// Number of Vertices, VBOs, VAOs and EBOs
+int numVerticesPoint;
 VBO * vboVerticesPoint = nullptr;
 VBO * vboColorsPoint = nullptr;
 EBO * eboPoint = nullptr;
 VAO * vaoPoint = nullptr;
 
+int numVerticesLine;
 VBO * vboVerticesLine = nullptr;
 VBO * vboColorsLine = nullptr;
 EBO * eboLine = nullptr;
 VAO * vaoLine = nullptr;
 
+int numVerticesTriangle;
 VBO * vboVerticesTriangle = nullptr;
 VBO * vboColorsTriangle = nullptr;
 EBO * eboTriangle = nullptr;
 VAO * vaoTriangle = nullptr;
+
+int numVerticesSmooth;
+float smoothScale=1.0;
+float smoothExponent=1.0;
+VBO * vboVerticesSmoothLeft = nullptr;
+VBO * vboVerticesSmoothRight = nullptr;
+VBO * vboVerticesSmoothDown = nullptr;
+VBO * vboVerticesSmoothUp = nullptr;
+VBO * vboVerticesSmoothCenter = nullptr;
+VBO * vboColorsSmooth = nullptr;
+EBO * eboSmooth = nullptr;
+VAO * vaoSmooth = nullptr;
 
 // Write a screenshot to the specified filename.
 void saveScreenshot(const char * filename)
@@ -304,11 +316,24 @@ void keyboardFunc(unsigned char key, int x, int y)
             speed[1]=min(speed[1]+1.0,1.0);
         break;
 
+        case 'c': //Set to initial view.
+            terrainRotate[0]=terrainRotate[1]=terrainRotate[2]=0.0;
+            terrainScale[0]=terrainScale[1]=terrainScale[2]=1.0;
+            terrainTranslate[0]=terrainTranslate[1]=terrainTranslate[2]=0.0;
+        break;
+
+        case 'v': //Enable Moving the camera
+            speed[0]=speed[1]=0.0;
+            if(enableCameraMov) enableCameraMov=false;
+            else enableCameraMov=true;
+        break;
+
         case 't': //Translate on MacOS
             if(controlState==TRANSLATE) controlState=ROTATE;
             else controlState=TRANSLATE;
             cout<<controlState<<"\n";
         break;
+
         case ' ':
             cout << "You pressed the spacebar." << endl;
         break;
@@ -334,33 +359,29 @@ void keyboardFunc(unsigned char key, int x, int y)
             renderType=4;
         break;
 
-        case 'c': //Clear the transformation matrix
-            terrainRotate[0]=terrainRotate[1]=terrainRotate[2]=0.0;
-            terrainScale[0]=terrainScale[1]=terrainScale[2]=1.0;
-            terrainTranslate[0]=terrainTranslate[1]=terrainTranslate[2]=0.0;
+        case '9':
+            smoothExponent*=2.0;
         break;
 
-        case 'v': //Enable Moving the camera
-            speed[0]=speed[1]=0.0;
-            if(enableCameraMov) enableCameraMov=false;
-            else enableCameraMov=true;
+        case '0':
+            smoothExponent/=2.0;
+        break;
+ 
+        case '+':
+            smoothScale*=2.0;
+        break;
+
+        case '-':
+            smoothScale/=2.0;
         break;
     }
 }
 
-void displayFunc()
-{
-    // This function performs the actual rendering.
-
-    // First, clear the screen.
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    if(enableCameraMov){
-        float verticalVec[3]={-focusVec[2],0,focusVec[0]};
-        for(int i=0;i<3;i++){
-            eyeVec[i]+=1.0*speed[0]*focusVec[i];
-            eyeVec[i]+=1.0*speed[1]*verticalVec[i];
-        }
+void modifyFocusAndCamera(){
+    float verticalVec[3]={-focusVec[2],0,focusVec[0]};
+    for(int i=0;i<3;i++){
+        eyeVec[i]+=1.0*speed[0]*focusVec[i];
+        eyeVec[i]+=1.0*speed[1]*verticalVec[i];
     }
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 
@@ -386,7 +407,20 @@ void displayFunc()
     float sum = 0;
     for (int i = 0; i < 3; i++) sum+=focusVec[i] * focusVec[i];
     for (int i = 0; i < 3; i++)  focusVec[i] /= sqrt(sum);
+}
 
+void displayFunc()
+{
+    // This function performs the actual rendering.
+
+    // First, clear the screen.
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    if(enableCameraMov){
+        modifyFocusAndCamera();
+    }
+
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
     // Set up the camera position, focus point, and the up vector.
     matrix.LoadIdentity();
     // View
@@ -399,7 +433,7 @@ void displayFunc()
     matrix.Rotate(terrainRotate[0],1.0,0.0,0.0);
     matrix.Rotate(terrainRotate[1],0.0,1.0,0.0);
     matrix.Rotate(terrainRotate[2],0.0,0.0,1.0);
-    matrix.Scale(terrainScale[0],terrainScale[1],terrainScale[2]);
+    matrix.Scale(terrainScale[0],terrainScale[1]*heightmapImage->getWidth()/5.0,terrainScale[2]);
 
     // In here, you can do additional modeling on the object, such as performing translations, rotations and scales.
     // ...
@@ -422,6 +456,12 @@ void displayFunc()
     pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
     pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
 
+    // Set render type, if is 4 then render the smooth
+    pipelineProgram->SetUniformVariablei("renderType",renderType);
+    
+    pipelineProgram->SetUniformVariablef("scale",smoothScale);
+    pipelineProgram->SetUniformVariablef("exponent",smoothExponent);
+
     // Execute the rendering.
     // Bind the VAO that we want to render. Remember, one object = one VAO. 
 
@@ -440,6 +480,10 @@ void displayFunc()
         glDrawElements(GL_TRIANGLES,numVerticesTriangle,GL_UNSIGNED_INT,0); // Render the VAO, by using element array, size is "numVerticesTriangle", starting from vertex 0.
         // glDrawArrays(GL_TRIANGLES, 0, numVerticesTriangle);
     }
+    else if(renderType==4){
+        vaoSmooth->Bind();
+        glDrawElements(GL_TRIANGLES,numVerticesSmooth,GL_UNSIGNED_INT,0);
+    }
 
     // Swap the double-buffers.
     glutSwapBuffers();
@@ -451,8 +495,11 @@ void calcPosColors(float* positions,float* colors){
     for (int i = 0; i < heightmapImage->getHeight(); i++) {
         for (int j = 0,pos=i*heightmapImage->getWidth()*3; j < heightmapImage->getWidth(); j++,pos+=3) {
             positions[pos] = i-1.0*(heightmapImage->getHeight() - 1.0)/2.0;
-            positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0*heightmapImage->getWidth()/5.0-heightmapImage->getWidth()/10.0;
+            positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0f;
             positions[pos + 2] = -j+1.0*(heightmapImage->getWidth() - 1.0)/2.0;
+            // positions[pos] = i/(heightmapImage->getHeight() - 1.0);
+            // positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0f;
+            // positions[pos + 2] = -j/(heightmapImage->getWidth() - 1.0);
         }
     }
 
@@ -488,6 +535,8 @@ void initPoint(float* positions,float* colors){
     vaoPoint->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsPoint, "color");
     eboPoint = new EBO(numVerticesPoint,elements,GL_STATIC_DRAW); //Bind the EBO
     
+    //Free the elements;
+    free(elements);
 }
 
 void initLine(float* positions,float* colors){
@@ -523,6 +572,9 @@ void initLine(float* positions,float* colors){
     vaoLine->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesLine, "position");
     vaoLine->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsLine, "color");
     eboLine = new EBO(numVerticesLine,elements,GL_STATIC_DRAW); //Bind the EBO
+
+    //Free the elements;
+    free(elements);
 }
 
 void initTriangle(float* positions,float* colors){
@@ -554,6 +606,128 @@ void initTriangle(float* positions,float* colors){
     vaoTriangle->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesTriangle, "position");
     vaoTriangle->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsTriangle, "color");
     eboTriangle = new EBO(numVerticesTriangle,elements,GL_STATIC_DRAW); //Bind the EBO
+
+    //Free the elements;
+    free(elements);
+}
+
+void initSmooth(float* positions,float* colors){
+
+    numVerticesSmooth = (heightmapImage->getHeight() - 1) * (heightmapImage->getWidth() - 1)*6;
+
+    unsigned int* elements = (unsigned int*)malloc(numVerticesSmooth * sizeof(unsigned int)); // initialize elements array
+    
+    int pos=0;
+    // The offset of two triangles in a square (Starting from the left up corner).
+    int dxy[6]={0,1,(int)heightmapImage->getWidth(),
+                1,(int)heightmapImage->getWidth()+1,(int)heightmapImage->getWidth()};
+    // Filling the triangles elements
+    for (int i = 0; i < heightmapImage->getHeight()-1; i++) {
+        for (int j = 0; j < heightmapImage->getWidth()-1; j++,pos+=6) {
+            int leftUpCorner=i*(heightmapImage->getWidth())+j;
+            for(int k1=0;k1<6;k1++){
+                elements[pos+k1]=leftUpCorner+dxy[k1];
+            }
+        }
+    }
+
+    vboVerticesSmoothCenter = new VBO(numVerticesPoint, 3, positions, GL_STATIC_DRAW); // For center, we can use the original positions.
+
+    // Creating temperary positions array.
+    float* tmpPos = (float*)malloc(numVerticesPoint * 3 * sizeof(float));
+
+    // Create Pleft : tmpPos[i*width+j]=positions[i*width+(j-1)]
+    pos=0;
+    for(int i=0;i<heightmapImage->getHeight();i++){
+        tmpPos[pos]=positions[pos];
+        tmpPos[pos+1]=positions[pos+1];
+        tmpPos[pos+2]=positions[pos+2];
+        pos+=3;
+        for(int j=1;j<heightmapImage->getWidth();j++,pos+=3){
+            tmpPos[pos]=positions[pos-3];
+            tmpPos[pos+1]=positions[pos-2];
+            tmpPos[pos+2]=positions[pos-1];
+        }
+    }
+    // Send Pleft to vbo
+    vboVerticesSmoothLeft = new VBO(numVerticesPoint,3,tmpPos,GL_STATIC_DRAW);
+
+    // Create Pright : tmpPos[i*width+j]=positions[i*width+(j+1)]
+    pos=0;
+    for(int i=0;i<heightmapImage->getHeight();i++){
+        for(int j=0;j<heightmapImage->getWidth()-1;j++,pos+=3){
+            tmpPos[pos]=positions[pos+3];
+            tmpPos[pos+1]=positions[pos+4];
+            tmpPos[pos+2]=positions[pos+5];
+        }
+        tmpPos[pos]=positions[pos];
+        tmpPos[pos+1]=positions[pos+1];
+        tmpPos[pos+2]=positions[pos+2];
+        pos+=3;
+    }
+    // Send Pright to vbo
+    vboVerticesSmoothRight = new VBO(numVerticesPoint,3,tmpPos,GL_STATIC_DRAW);
+
+    // Create Pup : tmpPos[i*width+j]=positions[(i+1)*width+j]
+    pos=0;
+    for(int i=0;i<heightmapImage->getHeight();i++){
+        if(i==0){
+            for(int j=0;j<heightmapImage->getWidth();j++,pos+=3){
+                tmpPos[pos]=positions[pos];
+                tmpPos[pos+1]=positions[pos+1];
+                tmpPos[pos+2]=positions[pos+2];
+            }
+        }
+        else{
+            for(int j=0;j<heightmapImage->getWidth();j++,pos+=3){
+                tmpPos[pos]=positions[pos-heightmapImage->getWidth()*3];
+                tmpPos[pos+1]=positions[pos+1-heightmapImage->getWidth()*3];
+                tmpPos[pos+2]=positions[pos+2-heightmapImage->getWidth()*3];
+            }
+        }
+    }
+    // Send Pup to vbo
+    vboVerticesSmoothUp = new VBO(numVerticesPoint,3,tmpPos,GL_STATIC_DRAW);
+
+    // Create Pdown : tmpPos[i*width+j]=positions[(i-1)*width+j]
+    pos=0;
+    for(int i=0;i<heightmapImage->getHeight();i++){
+        if(i==heightmapImage->getHeight()-1){
+            for(int j=0;j<heightmapImage->getWidth();j++,pos+=3){
+                tmpPos[pos]=positions[pos];
+                tmpPos[pos+1]=positions[pos+1];
+                tmpPos[pos+2]=positions[pos+2];
+            }
+        }
+        else{
+            for(int j=0;j<heightmapImage->getWidth();j++,pos+=3){
+                tmpPos[pos]=positions[pos+heightmapImage->getWidth()*3];
+                tmpPos[pos+1]=positions[pos+1+heightmapImage->getWidth()*3];
+                tmpPos[pos+2]=positions[pos+2+heightmapImage->getWidth()*3];
+            }
+        }
+    }
+    // Send Pdown to vbo
+    vboVerticesSmoothDown = new VBO(numVerticesPoint,3,tmpPos,GL_STATIC_DRAW);
+
+    //We can still use the colors since we use elements array
+    vboColorsSmooth = new VBO(numVerticesPoint, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
+
+    vaoSmooth = new VAO();
+
+    vaoSmooth->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSmoothLeft, "pleft");
+    vaoSmooth->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSmoothRight, "pright");
+    vaoSmooth->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSmoothUp, "pup");
+    vaoSmooth->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSmoothDown, "pdown");
+    vaoSmooth->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSmoothCenter, "pcenter");
+
+    vaoSmooth->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsSmooth, "color");
+
+    eboSmooth = new EBO(numVerticesSmooth,elements,GL_STATIC_DRAW); //Bind the EBO
+
+    // Free the pointer
+    free(tmpPos);
+    free(elements);
 }
 
 void initScene(int argc, char *argv[])
@@ -606,9 +780,16 @@ void initScene(int argc, char *argv[])
 
     initTriangle(positions,colors); //Create the triangle VAO,VBO,EBO
 
+    initSmooth(positions,colors); //Create the triangle VAO,VBO,EBO
+
     // We don't need this data any more, as we have already uploaded it to the VBO. And so we can destroy it, to avoid a memory leak.
     free(positions);
     free(colors);
+
+    // Initialize variables in LookAt function
+    // eyeVec[0]=0.5,eyeVec[1]=0.5,eyeVec[2]=0.5;
+    // focusVec[0]=0.0,focusVec[1]=-0.5,focusVec[2]=-1.0;
+    // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Initialize variables in LookAt function
     eyeVec[0]=0.0,eyeVec[1]=0.7* heightmapImage->getWidth(),eyeVec[2]=1.0 * heightmapImage->getWidth();
