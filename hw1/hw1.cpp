@@ -46,6 +46,9 @@ CONTROL_STATE controlState = ROTATE;
 
 int renderType=1;
 
+// Check if using the texture map
+bool useTexture = false;
+
 bool enableCameraMov=false;
 float speed[2]={0.0,0.0};
 float eyeVec[3];
@@ -301,19 +304,19 @@ void keyboardFunc(unsigned char key, int x, int y)
         break;
 
         case 'w': //Going forward
-            speed[0]=min(speed[0]+1.0,1.0);
+            speed[0]=min(speed[0]+0.01,0.01);
         break;
 
         case 's': //Going backward
-            speed[0]=max(speed[0]-1.0,-1.0);
+            speed[0]=max(speed[0]-0.01,-0.01);
         break;
 
         case 'a': //Going Left
-            speed[1]=max(speed[1]-1.0,-1.0);
+            speed[1]=max(speed[1]-0.01,-0.01);
         break;
 
         case 'd': //Going Right
-            speed[1]=min(speed[1]+1.0,1.0);
+            speed[1]=min(speed[1]+0.01,0.01);
         break;
 
         case 'c': //Set to initial view.
@@ -433,7 +436,7 @@ void displayFunc()
     matrix.Rotate(terrainRotate[0],1.0,0.0,0.0);
     matrix.Rotate(terrainRotate[1],0.0,1.0,0.0);
     matrix.Rotate(terrainRotate[2],0.0,0.0,1.0);
-    matrix.Scale(terrainScale[0],terrainScale[1]*heightmapImage->getWidth()/5.0,terrainScale[2]);
+    matrix.Scale(terrainScale[0],terrainScale[1]/3.0,terrainScale[2]);
 
     // In here, you can do additional modeling on the object, such as performing translations, rotations and scales.
     // ...
@@ -490,26 +493,45 @@ void displayFunc()
 }
 
 void calcPosColors(float* positions,float* colors){
-
-    //Calculating points positions, the height is from -25.0 to 25.0
-    for (int i = 0; i < heightmapImage->getHeight(); i++) {
-        for (int j = 0,pos=i*heightmapImage->getWidth()*3; j < heightmapImage->getWidth(); j++,pos+=3) {
-            positions[pos] = i-1.0*(heightmapImage->getHeight() - 1.0)/2.0;
-            positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0f;
-            positions[pos + 2] = -j+1.0*(heightmapImage->getWidth() - 1.0)/2.0;
-            // positions[pos] = i/(heightmapImage->getHeight() - 1.0);
-            // positions[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0f;
-            // positions[pos + 2] = -j/(heightmapImage->getWidth() - 1.0);
+    // maximum of height and width, for normalizatoin
+    float maxHW = max(heightmapImage->getHeight() - 1.0, heightmapImage->getWidth() - 1.0);
+    cout << heightmapImage->getHeight() << " " << heightmapImage->getWidth() << "\n";
+    if (heightmapImage->getBytesPerPixel() == 1) {
+        //Calculating points positions, the height range is [0.0,1.0] for scale\exponent | x range is [-1.0,1.0] | z range is [-1.0,1.0]
+        for (int i = 0; i < heightmapImage->getHeight(); i++) {
+            for (int j = 0, pos = i * heightmapImage->getWidth() * 3; j < heightmapImage->getWidth(); j++, pos += 3) {
+                positions[pos] = (2.0 * i - (heightmapImage->getHeight() - 1.0)) / maxHW;
+                positions[pos + 1] = 1.0 * heightmapImage->getPixel(i, j, 0) / 255.0f;
+                positions[pos + 2] = (-j * 2.0 + (heightmapImage->getWidth() - 1.0)) / maxHW;
+            }
         }
     }
-
-    //Calculating points colors.
-    for (int i = 0; i < heightmapImage->getHeight(); i++) {
-        for (int j = 0, pos = i * heightmapImage->getWidth()*4; j < heightmapImage->getWidth(); j++, pos += 4) {
-            colors[pos] = 1.0*heightmapImage->getPixel(i,j,0)/255.0;
-            colors[pos + 1] = 1.0*heightmapImage->getPixel(i,j,0)/255.0;
-            colors[pos + 2] = 1.0*heightmapImage->getPixel(i,j,0)/255.0;
-            colors[pos + 3] = 1.0;
+    else if(heightmapImage->getBytesPerPixel()==3){
+        //Calculating points positions, the height range is [0.0,1.0] for scale\exponent | x range is [-1.0,1.0] | z range is [-1.0,1.0]
+        for (int i = 0; i < heightmapImage->getHeight(); i++) {
+            for (int j = 0, pos = i * heightmapImage->getWidth() * 3; j < heightmapImage->getWidth(); j++, pos += 3) {
+                positions[pos] = (2.0 * i - (heightmapImage->getHeight() - 1.0)) / maxHW;
+                // Transform the RGB to Grayscale by using 0.299 R + 0.587 G + 0.114 B
+                //cout << pos << " ";
+                positions[pos + 1] = (  0.299 * heightmapImage->getPixel(i, j, 0)+
+                                        0.587 * heightmapImage->getPixel(i, j, 1)+
+                                        0.114 * heightmapImage->getPixel(i, j, 2))/ 255.0f;
+                positions[pos + 2] = (-j * 2.0 + (heightmapImage->getWidth() - 1.0)) / maxHW;
+            }
+        }
+    }
+    if (useTexture) {
+    }
+    else {
+        //Calculating points colors.
+        for (int i = 0; i < heightmapImage->getHeight(); i++) {
+            for (int j = 0, pos = i * heightmapImage->getWidth() * 4; j < heightmapImage->getWidth(); j++, pos += 4) {
+                //colors[pos] = heightmapImage->getPixel(j, i, 0) / 255.0f;
+                //colors[pos+1] = heightmapImage->getPixel(j, i, 1) / 255.0f;
+                //colors[pos+2] = heightmapImage->getPixel(j, i, 2) / 255.0f;
+                colors[pos] = colors[pos + 1] = colors[pos + 2] = 1.0 * positions[pos / 4 * 3 + 1] ;
+                colors[pos + 3] = 1.0;
+            }
         }
     }
 }
@@ -521,7 +543,7 @@ void initPoint(float* positions,float* colors){
     //The elements for point is just 0,1,2,...,numVerticesPoint-1.
     for (int i = 0; i < heightmapImage->getHeight(); i++) {
         for (int j = 0; j < heightmapImage->getWidth(); j++) {
-            int pos=i*heightmapImage->getHeight()+j;
+            int pos=i*heightmapImage->getWidth()+j;
             elements[pos]=pos;
         }
     }
@@ -739,6 +761,11 @@ void initScene(int argc, char *argv[])
         cout << "Error reading image " << argv[1] << "." << endl;
         exit(EXIT_FAILURE);
     }
+    // Check the heightmapImage has 3 channels or 1 channel otherwise throws error.
+    if (heightmapImage->getBytesPerPixel() != 1 && heightmapImage->getBytesPerPixel() != 3) {
+        cout << "Image channel need to be 1 or 3 " << argv[1] << "." << endl;
+        exit(EXIT_FAILURE);
+    }
 
     // Set the background color.
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black color.
@@ -792,8 +819,8 @@ void initScene(int argc, char *argv[])
     // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Initialize variables in LookAt function
-    eyeVec[0]=0.0,eyeVec[1]=0.7* heightmapImage->getWidth(),eyeVec[2]=1.0 * heightmapImage->getWidth();
-    focusVec[0]=0.0,focusVec[1]=-0.7* heightmapImage->getWidth(),focusVec[2]=-1.0 * heightmapImage->getWidth();
+    eyeVec[0]=0.0,eyeVec[1]=1.4,eyeVec[2]=2.0;
+    focusVec[0]=0.0,focusVec[1]=-0.7,focusVec[2]=-1.0;
     upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Normalize the focusVec

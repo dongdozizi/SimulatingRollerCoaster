@@ -38,3 +38,4 @@ void VAO::ConnectPipelineProgramAndVBOAndShaderVariable(PipelineProgram * pipeli
     // The shader variable receives its data from the currently bound VBO (i.e., vbo), starting from offset 0 in the VBO. 
     // The number of float entries per vertex in the VBO is read from the VBO via "GetNumFloatsPerVertex".
 }
+
