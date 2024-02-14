@@ -109,6 +109,12 @@ VBO * vboColorsSmooth = nullptr;
 EBO * eboSmooth = nullptr;
 VAO * vaoSmooth = nullptr;
 
+int numVerticesWireframe;
+VBO* vboVerticesWireframe = nullptr;
+VBO* vboColorsWireframe = nullptr;
+EBO* eboWireframe = nullptr;
+VAO* vaoWireframe = nullptr;
+
 // Write a screenshot to the specified filename.
 void saveScreenshot(const char * filename)
 {
@@ -479,25 +485,36 @@ void displayFunc()
     if(renderType==1){
         vaoPoint->Bind();
         glDrawElements(GL_POINTS,numVerticesPoint,GL_UNSIGNED_INT,0); // Render the VAO, by using element array, size is "numVerticesPoint", starting from vertex 0.
-        // glDrawArrays(GL_POINTS, 0, numVerticesPoint); // Render the VAO, by rendering "numVertices", starting from vertex 0.
     }
     else if(renderType==2){
         vaoLine->Bind();
         glDrawElements(GL_LINES,numVerticesLine,GL_UNSIGNED_INT,0); // Render the VAO, by using element array, size is "numVerticesLine", starting from vertex 0.
-        //glDrawArrays(GL_LINES, 0, numVerticesLine); // Render the VAO, by rendering "numVertices", starting from vertex 0.
     }
     else if(renderType==3){
         vaoTriangle->Bind();
         glDrawElements(GL_TRIANGLES,numVerticesTriangle,GL_UNSIGNED_INT,0); // Render the VAO, by using element array, size is "numVerticesTriangle", starting from vertex 0.
-        // glDrawArrays(GL_TRIANGLES, 0, numVerticesTriangle);
     }
     else if(renderType==4){
         vaoSmooth->Bind();
-        glDrawElements(GL_TRIANGLES,numVerticesSmooth,GL_UNSIGNED_INT,0);
+        glDrawElements(GL_TRIANGLES,numVerticesSmooth,GL_UNSIGNED_INT,0); // Render the VAO, by using element array, size is "numVerticesSmooth", starting from vertex 0.
     }
     else if (renderType == 5) {
         vaoSmooth->Bind();
-        glDrawElements(GL_TRIANGLES, numVerticesSmooth, GL_UNSIGNED_INT, 0);
+        glDrawElements(GL_TRIANGLES, numVerticesSmooth, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesSmooth", starting from vertex 0.
+    }
+    else if (renderType==6) {
+        vaoWireframe->Bind();
+        glDrawElements(GL_LINES, numVerticesWireframe, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesLine", starting from vertex 0.
+        
+        glEnable(GL_POLYGON_OFFSET_FILL);
+        glPolygonOffset(1.0f,1.0f);
+        
+
+        // after drawing the line, then set the renderType to normal color
+        pipelineProgram->SetUniformVariablei("renderType", 3);
+        vaoTriangle->Bind();
+        glDrawElements(GL_TRIANGLES, numVerticesTriangle, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesTriangle", starting from vertex 0.
+        glDisable(GL_POLYGON_OFFSET_FILL);
     }
 
     // Swap the double-buffers.
@@ -523,7 +540,7 @@ void calcPosColors(float* positions,float* colors){
         for (int i = 0; i < heightmapImage->getHeight(); i++) {
             for (int j = 0, pos = i * heightmapImage->getWidth() * 3; j < heightmapImage->getWidth(); j++, pos += 3) {
                 positions[pos] = (j * 2.0 - (heightmapImage->getWidth() - 1.0)) / maxHW;
-                // Transform the RGB to Grayscale by using 0.299 R + 0.587 G + 0.114 B
+                // Transform the RGB to Grayscale by using 0.299 R + 0.587 G + 0.114 B same in OpenCV https://docs.opencv.org/4.x/de/d25/imgproc_color_conversions.html
                 //cout << pos << " ";
                 positions[pos + 1] = (  0.299 * heightmapImage->getPixel(j, i, 0)+
                                         0.587 * heightmapImage->getPixel(j, i, 1)+
@@ -770,6 +787,66 @@ void initSmooth(float* positions,float* colors){
     free(elements);
 }
 
+void initWireframe(float* positions, float* colors) {
+
+    numVerticesWireframe = heightmapImage->getHeight() * (heightmapImage->getWidth() - 1) * 2
+        + (heightmapImage->getHeight() - 1) * heightmapImage->getWidth() * 2
+        + (heightmapImage->getHeight() - 1) * (heightmapImage->getWidth()-1) * 2;
+
+    unsigned int* elements = (unsigned int*)malloc(numVerticesWireframe * sizeof(unsigned int)); // initialize elements array
+
+    int pos = 0;
+
+    // Drawing horizontal line
+    for (int i = 0; i < heightmapImage->getHeight(); i++) {
+        for (int j = 0; j < heightmapImage->getWidth() - 1; j++, pos += 2) {
+            elements[pos] = i * heightmapImage->getWidth() + j;
+            elements[pos + 1] = elements[pos] + 1;
+        }
+    }
+
+    // Drawing vertical line
+    for (int i = 0; i < heightmapImage->getHeight() - 1; i++) {
+        for (int j = 0; j < heightmapImage->getWidth(); j++, pos += 2) {
+            elements[pos] = i * heightmapImage->getWidth() + j;
+            elements[pos + 1] = elements[pos] + heightmapImage->getWidth();
+        }
+    }
+
+    // Drawing diagnal line
+    for (int i = 0; i < heightmapImage->getHeight() - 1; i++) {
+        for (int j = 0; j < heightmapImage->getWidth()-1; j++, pos += 2) {
+            elements[pos] = i * heightmapImage->getWidth() + j+1;
+            elements[pos + 1] = elements[pos] + heightmapImage->getWidth()-1;
+        }
+    }
+
+    // The color of the wireframe is all white
+    float* colorsWireframe = (float*)malloc(numVerticesPoint * 4 * sizeof(float)); // 4 floats per vertex, i.e., r,g,b,a
+    pos = 0;
+    for (int i = 0; i < heightmapImage->getHeight(); i++) {
+        for (int j = 0; j < heightmapImage->getWidth(); j++,pos+=4) {
+            colorsWireframe[pos] = 1.0f;
+            colorsWireframe[pos + 1] = 1.0f;
+            colorsWireframe[pos + 2] = 1.0f;
+            colorsWireframe[pos + 3] = 1.0f;
+        }
+    }
+
+    //We can still use the positions and colors since we use elements array
+    vboVerticesWireframe = new VBO(numVerticesPoint, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColorsWireframe = new VBO(numVerticesPoint, 4, colorsWireframe, GL_STATIC_DRAW); // 4 values per color, using number of point
+    vaoWireframe = new VAO();
+
+    vaoWireframe->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesWireframe, "position");
+    vaoWireframe->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsWireframe, "color");
+    eboWireframe = new EBO(numVerticesWireframe, elements, GL_STATIC_DRAW); //Bind the EBO
+
+    //Free the elements;
+    free(elements);
+    free(colorsWireframe);
+}
+
 void initScene(int argc, char *argv[])
 {
     // Load the image from a jpeg disk file into main memory.
@@ -840,7 +917,9 @@ void initScene(int argc, char *argv[])
 
     initTriangle(positions,colors); //Create the triangle VAO,VBO,EBO
 
-    initSmooth(positions,colors); //Create the triangle VAO,VBO,EBO
+    initSmooth(positions,colors); //Create the Smooth VAO,VBO,EBO
+
+    initWireframe(positions, colors); //Create the Wireframe VAO,VBO,EBO
 
     // We don't need this data any more, as we have already uploaded it to the VBO. And so we can destroy it, to avoid a memory leak.
     free(positions);
