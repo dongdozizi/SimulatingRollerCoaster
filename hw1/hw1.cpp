@@ -46,9 +46,6 @@ CONTROL_STATE controlState = ROTATE;
 
 int renderType=1;
 
-// Check if using the texture map
-bool useTexture = false;
-
 bool enableCameraMov=false;
 float speed[2]={0.0,0.0};
 float eyeVec[3];
@@ -71,7 +68,8 @@ int windowHeight = 720;
 char windowTitle[512] = "CSCI 420 Homework 1";
 
 // Stores the image loaded from disk.
-ImageIO * heightmapImage;
+ImageIO * heightmapImage=nullptr;
+ImageIO* texturemapImage=nullptr;
 
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
@@ -166,8 +164,8 @@ void reshapeFunc(int w, int h)
     matrix.LoadIdentity();
     // You need to be careful about setting the zNear and zFar. 
     // Anything closer than zNear, or further than zFar, will be culled.
-    const float zNear = 0.1f;
-    const float zFar = 10000.0f;
+    const float zNear = 0.01f;
+    const float zFar = 1000.0f;
     const float humanFieldOfView = 60.0f;
     matrix.Perspective(humanFieldOfView, 1.0f * w / h, zNear, zFar);
 }
@@ -304,19 +302,19 @@ void keyboardFunc(unsigned char key, int x, int y)
         break;
 
         case 'w': //Going forward
-            speed[0]=min(speed[0]+0.01,0.01);
+            speed[0]=min(speed[0]+0.002,0.004);
         break;
 
         case 's': //Going backward
-            speed[0]=max(speed[0]-0.01,-0.01);
+            speed[0]=max(speed[0]-0.002,-0.004);
         break;
 
         case 'a': //Going Left
-            speed[1]=max(speed[1]-0.01,-0.01);
+            speed[1]=max(speed[1]-0.002,-0.004);
         break;
 
         case 'd': //Going Right
-            speed[1]=min(speed[1]+0.01,0.01);
+            speed[1]=min(speed[1]+0.002,0.004);
         break;
 
         case 'c': //Set to initial view.
@@ -360,6 +358,14 @@ void keyboardFunc(unsigned char key, int x, int y)
 
         case '4': // Smooth Mode
             renderType=4;
+        break;
+
+        case '5': // Smooth Mode with JetMapXolor
+            renderType = 5;
+        break;
+
+        case '6': // Render a wireframe
+            renderType = 6;
         break;
 
         case '9':
@@ -487,6 +493,10 @@ void displayFunc()
         vaoSmooth->Bind();
         glDrawElements(GL_TRIANGLES,numVerticesSmooth,GL_UNSIGNED_INT,0);
     }
+    else if (renderType == 5) {
+        vaoSmooth->Bind();
+        glDrawElements(GL_TRIANGLES, numVerticesSmooth, GL_UNSIGNED_INT, 0);
+    }
 
     // Swap the double-buffers.
     glutSwapBuffers();
@@ -520,15 +530,21 @@ void calcPosColors(float* positions,float* colors){
             }
         }
     }
-    if (useTexture) {
+    if (texturemapImage!=nullptr) {
+        //Calculating points colors.
+        for (int i = 0; i < heightmapImage->getHeight(); i++) {
+            for (int j = 0, pos = i * heightmapImage->getWidth() * 4; j < heightmapImage->getWidth(); j++, pos += 4) {
+                colors[pos] = texturemapImage->getPixel(j, i, 0) / 255.0f;
+                colors[pos+1] = texturemapImage->getPixel(j, i, 1) / 255.0f;
+                colors[pos+2] = texturemapImage->getPixel(j, i, 2) / 255.0f;
+                colors[pos + 3] = 1.0;
+            }
+        }
     }
     else {
         //Calculating points colors.
         for (int i = 0; i < heightmapImage->getHeight(); i++) {
             for (int j = 0, pos = i * heightmapImage->getWidth() * 4; j < heightmapImage->getWidth(); j++, pos += 4) {
-                //colors[pos] = heightmapImage->getPixel(j, i, 0) / 255.0f;
-                //colors[pos+1] = heightmapImage->getPixel(j, i, 1) / 255.0f;
-                //colors[pos+2] = heightmapImage->getPixel(j, i, 2) / 255.0f;
                 colors[pos] = colors[pos + 1] = colors[pos + 2] = 1.0 * positions[pos / 4 * 3 + 1] ;
                 colors[pos + 3] = 1.0;
             }
@@ -767,6 +783,21 @@ void initScene(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    if (argc==3) {
+        cout << "loading texture\n";
+        texturemapImage = new ImageIO();
+        // Load the image from a jpeg disk file into main memory.
+        if (texturemapImage->loadJPEG(argv[2]) != ImageIO::OK) {
+            cout << "Error reading image " << argv[2] << "." << endl;
+            exit(EXIT_FAILURE);
+        }
+        // Check the htexturemapImage has 3 channels throws error.
+        if (texturemapImage->getBytesPerPixel() != 3) {
+            cout << "texture map should to be 3 " << argv[2] << "." << endl;
+            exit(EXIT_FAILURE);
+        }
+    }
+
     // Set the background color.
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black color.
 
@@ -835,10 +866,10 @@ void initScene(int argc, char *argv[])
 int main(int argc, char *argv[])
 {
 
-    if (argc != 2)
+    if (argc != 2&&argc!=3)
     {
         cout << "The arguments are incorrect." << endl;
-        cout << "usage: ./hw1 <heightmap file>" << endl;
+        cout << "usage: ./hw1 <heightmap file> or ./hw1 <heightmap file> <texturemap file>" << endl;
         exit(EXIT_FAILURE);
     }
 
