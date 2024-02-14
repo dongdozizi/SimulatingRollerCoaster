@@ -19,6 +19,9 @@
 #include <cstring>
 #include <cmath>
 
+#include <glm/glm.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #if defined(WIN32) || defined(_WIN32)
     #ifdef _DEBUG
         #pragma comment(lib, "glew32d.lib")
@@ -387,35 +390,34 @@ void keyboardFunc(unsigned char key, int x, int y)
 }
 
 void modifyFocusAndCamera(){
+
     float verticalVec[3]={-focusVec[2],0,focusVec[0]};
+    
+    // change the camera position
     for(int i=0;i<3;i++){
         eyeVec[i]+=1.0*speed[0]*focusVec[i];
         eyeVec[i]+=1.0*speed[1]*verticalVec[i];
     }
+    
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 
     // Modify the focus vector.
     matrix.LoadIdentity();
-    matrix.Rotate(focusRotate[0], -focusVec[2], 0.0, focusVec[0]);
-    matrix.Rotate(focusRotate[1], 0.0, 1.0, 0.0);
+    matrix.Rotate(focusRotate[0], focusVec[2], 0.0, -focusVec[0]);
+    matrix.Rotate(focusRotate[1], 0.0, -1.0, 0.0);
 
-    float rotateMatrix[16], tempFocus[3] = { 0 };
-    matrix.GetMatrix(rotateMatrix);
+    float tmpMatrix[16];
+    matrix.GetMatrix(tmpMatrix);
+    glm::mat4 rotateMatrix=glm::make_mat4(tmpMatrix);
+    glm::vec4 tmpFocus(focusVec[0],focusVec[1],focusVec[2],1.0f);
     
-    // Doing matrix vector multiplication
+    // Multiply the rotate matrix with the focus vector to get the rotated vector
+    tmpFocus = rotateMatrix * tmpFocus;
+
     for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 4; j++) {
-            tempFocus[i] += rotateMatrix[i*4+j] * focusVec[j];
-        }
-    }
-    for (int i = 0; i < 3; i++) {
-        focusVec[i] = tempFocus[i];
+        focusVec[i] = tmpFocus[i];
         focusRotate[i] = 0;
     }
-    // Normalized the vector;
-    float sum = 0;
-    for (int i = 0; i < 3; i++) sum+=focusVec[i] * focusVec[i];
-    for (int i = 0; i < 3; i++)  focusVec[i] /= sqrt(sum);
 }
 
 void displayFunc()
