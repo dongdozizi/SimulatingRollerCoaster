@@ -914,8 +914,8 @@ void initTriangleWithTexture(float* positions){
     pos=0;
     for(int i=0;i<heightmapImage->getHeight();i++){
         for(int j=0;j<heightmapImage->getWidth();j++,pos+=2){
-            texCoord[pos]=(1.0*j)/(1.0f*heightmapImage->getWidth());
-            texCoord[pos+1]=(1.0*i)/(1.0f*heightmapImage->getHeight());
+            texCoord[pos]=(1.0*j)/(1.0f*heightmapImage->getWidth()-1.0);
+            texCoord[pos+1]=(1.0*i)/(1.0f*heightmapImage->getHeight()-1.0);
         }
     }
 
