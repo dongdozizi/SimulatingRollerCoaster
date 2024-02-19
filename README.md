@@ -51,13 +51,21 @@ For windows, just open the hw1.sln with visual studio, and change the command ar
 ### Must
 
 Press '1' for the points mode
+
 Press '2' for the lines mode
+
 Press '3' for the triangles mode
+
 Press '4' for the smooth mode
+
   In the smooth mode:
+  
     +    ... multiply the current "scale" by 2x
+    
     -    ... divide the current "scale" by 2x
+    
     9    ... multiply the current "exponent" by 2x
+    
     0    ... divide the current "exponent" by 2x
 
 ### Extras
