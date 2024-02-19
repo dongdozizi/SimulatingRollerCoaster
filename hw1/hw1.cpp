@@ -402,10 +402,6 @@ void keyboardFunc(unsigned char key, int x, int y)
             renderType = 71;
         break;
 
-        case '8': //  Render with light
-            renderType = 8;
-        break;
-
         case '9':
             smoothExponent*=2.0;
         break;
