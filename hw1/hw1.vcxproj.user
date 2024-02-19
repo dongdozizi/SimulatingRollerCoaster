@@ -5,7 +5,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LocalDebuggerCommandArguments>./heightmap/mtFujiHeight-1000.jpg ./heightmap/mtFuji-1000.jpg</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>./heightmap/Heightmap.jpg ./heightmap/color.jpg</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup>
