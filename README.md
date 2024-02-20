@@ -100,7 +100,7 @@ Press `t` to enable\disable the Translate mode
 - **Smooth Mode With JetColorMap**: Press `5`
 - **Triangles Mode with wireframe**: Press `6`
 - **Texturemap the surface with an arbitrary image (If compatible)**: Press `7`
-- **Texturemap the surface with an image with image at same size (If compatible)**: Press `&` (`shift`+`7`)
+- **Texturemap the surface with an image with image at same size (If compatible)**: Press `&` (which is `shift`+`7`)
 - **Reset the heightmap to initial view(Undo all the rotation, scaling and translation)**: Press `c`
 - **Enable moving camera**: Press `v`. In this mode:
   - `w` to move the camera position ahead.
