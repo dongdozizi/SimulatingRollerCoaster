@@ -46,42 +46,39 @@ Examples
 
 For windows, just open the hw1.sln with visual studio, and change the command arguments for custom input. The input is simillar to MacOS
 
-## Usages
+## Instructions
 
-### Must
+### Basic Modes
+- **Points Mode**: Press `1` to activate.
+- **Lines Mode**: Press `2` to activate.
+- **Triangles Mode**: Press `3` to activate.
 
-- **Points mode**: Press '1'
+### Smooth Mode
+Activate by pressing `4`. This mode allows for precision adjustments:
+- Press `+` to **multiply** the current "scale" by 2x.
+- Press `-` to **divide** the current "scale" by 2x.
+- Press `9` to **multiply** the current "exponent" by 2x.
+- Press `0` to **divide** the current "exponent" by 2x.
 
-- **Lines mode**: Press '2'
+### Rotation Controls
+- **Rotate along the X and Y axes**: Press and hold the left mouse button, then move the mouse.
+- **Rotate along the Z axis**: Press and hold the middle mouse button, then move the mouse.
 
-- **Triangles mode**: Press '3'
+### Scaling Controls
+- **Scale along the X and Y axes**: Press and hold `Shift` + left mouse button, then move the mouse.
+- **Scale along the Z axis**: Press and hold `Shift` + middle mouse button, then move the mouse.
 
-- **Smooth mode**: Press '4'.In this mode, you can perform the following actions:
- - Press '+' to multiply the current "scale" by 2x
- - Press '-' to divide the current "scale" by 2x
- - Press '9' to multiply the current "exponent" by 2x
- - Press '0' to divide the current "exponent" by 2x
+### Translation Controls
+#### Windows
+- **Translate along the X and Y axes**: Press and hold `Control` + left mouse button, then move the mouse.
+- **Translate along the Z axis**: Press and hold `Control` + middle mouse button, then move the mouse.
 
-- **Rotate along the X and Y axes**: Press and hold the left mouse button, then move the mouse to rotate the heightfield along the X and Y axes.
+#### MacOS
+- **Translate Mode**: Activate by pressing `t` (do not hold).
+    - **Translate along the X and Y axes**: In translate mode, press and hold the left mouse button, then move the mouse.
+    - **Translate along the Z axis**: In translate mode, press and hold the middle mouse button, then move the mouse.
 
-- **Rotate along the Z axis**: Press and hold the middle mouse button, then move the mouse to rotate the heightfield along the Z axis.
-
-- **Scale along the X and Y axes**: Press and hold the `Shift` key along with the left mouse button, then move the mouse to scale the heightfield along the X and Y axes.
-
-- **Scale along the Z axis**: Press and hold the `Shift` key along with the middle mouse button, then move the mouse to scale the heightfield along the Z axis.
-
-- **Translate along the X and Y axes (Windows)**: Press and hold the `Control` key along with the left mouse button, then move the mouse to translate the heightfield along the X and Y axes.
-
-- **Translate along the Z axis (Windows)**: Press and hold the `Control` key along with the middle mouse button, then move the mouse to translate the heightfield along the Z axis.
-
-- **Translate on MacOS**: To enable translate mode, press key 't' (Do not hold).
-
-- **Translate along the X and Y axes (MacOS)**: In translate mode, press and hold the left mouse button, then move the mouse to translate the heightfield along the X and Y axes.
-
-- **Translate along the Z axis (MacOS)**: In translate mode, press and hold the middle mouse button, then move the mouse to translate the heightfield along the Z axis.
-
-
-### Extras
+### Extra Credit
 
 
 
