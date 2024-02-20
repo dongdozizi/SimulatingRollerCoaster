@@ -78,7 +78,7 @@ Activate by pressing `4`. This mode allows for precision adjustments:
     - **Translate along the X and Y axes**: In translate mode, press and hold the left mouse button, then move the mouse.
     - **Translate along the Z axis**: In translate mode, press and hold the middle mouse button, then move the mouse.
 
-### Extra Credit
+## Instructions (For Extra Credit)
 
 
 
