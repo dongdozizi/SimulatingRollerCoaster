@@ -56,17 +56,11 @@ For windows, just open the hw1.sln with visual studio, and change the command ar
 
 - **Triangles mode**: Press '3'
 
-- **Smooth mode**: Press '4'
-
-In the smooth mode:
-  
-Press '+' to multiply the current "scale" by 2x
-
-Press '-' to divide the current "scale" by 2x
-
-Press '9' to multiply the current "exponent" by 2x
-
-Press '0' to divide the current "exponent" by 2x
+- **Smooth mode**: Press '4'.In this mode, you can perform the following actions:
+ - Press '+' to multiply the current "scale" by 2x
+ - Press '-' to divide the current "scale" by 2x
+ - Press '9' to multiply the current "exponent" by 2x
+ - Press '0' to divide the current "exponent" by 2x
 
 - **Rotate along the X and Y axes**: Press and hold the left mouse button, then move the mouse to rotate the heightfield along the X and Y axes.
 
