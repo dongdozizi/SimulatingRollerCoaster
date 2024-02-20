@@ -47,6 +47,7 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
+int screenShotCounter = 0;
 int renderType=1;
 bool enableCameraMov=false;
 float speed[2]={0.0,0.0};
@@ -142,6 +143,15 @@ void saveScreenshot(const char * filename)
     delete [] screenshotData;
 }
 
+// Save screenshot in increasing number 0001,0002,0003....
+void autoSave() {
+    if (screenShotCounter <= 299) {
+        char filename[40];
+        sprintf(filename, "../Examples/Heightmap-%04d.jpg", ++screenShotCounter);
+        saveScreenshot(filename);
+    }
+}
+
 int frameCount = 0;
 double lastTime = 0;
 double fps = 0;
@@ -154,24 +164,28 @@ void idleFunc()
     // Notify GLUT that it should call displayFunc.
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
     ++frameCount;
-
     double timeInterval = currentTime - lastTime;
 
-    if (timeInterval > 1.0) {
-        fps = frameCount / timeInterval;
-        //cout<<"FPS: "<<fps;
-
-        frameCount = 0;
-
-        // cout<<"\n Translate ";
-        // for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" | Rotate ";
-        // for(int i=0;i<3;i++) cout<<terrainRotate[i]<<" ";cout<<" | Scale ";
-        // for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<" | Focus Rotate ";
-        // for (int i = 0; i < 3; i++) cout << focusRotate[i] << " "; cout << " | FocuseVec ";
-        // for (int i = 0; i < 3; i++) cout << focusVec[i] << " "; cout << " | EyeVec ";
-        // for(int i=0;i<3;i++) cout<<eyeVec[i]<<" ";cout<<"\n";
+    if (timeInterval > 1.0/10.0) {
+        //autoSave();
         lastTime = currentTime;
     }
+
+    //if (timeInterval > 1.0) {
+    //    fps = frameCount / timeInterval;
+    //    cout<<"FPS: "<<fps;
+
+    //    frameCount = 0;
+
+    //     cout<<"\n Translate ";
+    //     for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" | Rotate ";
+    //     for(int i=0;i<3;i++) cout<<terrainRotate[i]<<" ";cout<<" | Scale ";
+    //     for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<" | Focus Rotate ";
+    //     for (int i = 0; i < 3; i++) cout << focusRotate[i] << " "; cout << " | FocuseVec ";
+    //     for (int i = 0; i < 3; i++) cout << focusVec[i] << " "; cout << " | EyeVec ";
+    //     for(int i=0;i<3;i++) cout<<eyeVec[i]<<" ";cout<<"\n";
+    //    lastTime = currentTime;
+    //}
     
     glutPostRedisplay();
 }
@@ -367,7 +381,8 @@ void keyboardFunc(unsigned char key, int x, int y)
 
         case 'x':
             // Take a screenshot.
-            saveScreenshot("screenshot.jpg");
+            autoSave();
+            //saveScreenshot("screenshot.jpg");
         break;
 
         case '1': // Point Mode
@@ -1075,8 +1090,8 @@ void initScene(int argc, char *argv[])
     // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Initialize variables in LookAt function
-    eyeVec[0]=0.0,eyeVec[1]=1.4,eyeVec[2]=2.0;
-    focusVec[0]=0.0,focusVec[1]=-0.7,focusVec[2]=-1.0;
+    eyeVec[0]=0.0,eyeVec[1]=1.3,eyeVec[2]=1.7;
+    focusVec[0]=0.0,focusVec[1]=-1.3,focusVec[2]=-1.7;
     upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Normalize the focusVec

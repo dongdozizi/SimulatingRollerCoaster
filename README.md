@@ -1,4 +1,4 @@
-# CSCI420-HW1-HeightFiedWithShaders
+# CSCI420-HW1-HeightFieldWithShaders
 
 ## Homework Website
 
@@ -32,6 +32,7 @@ This assignment is intended as a hands-on introduction to OpenGL and programming
  - README.md - Introduction of the project
  - animations - Restore the JPEG frames required for animation
  - openGLHelper - Helper files for OpenGL
+ - Examples - Example output for the heightfield
  - hw1/heightmap - File for the input images
  - hw1/hw1.cpp - Main opengl program for this homework
  - hw1/Makefile - Make file for MacOS and Linux.
@@ -61,11 +62,21 @@ The heightmap_file should be only grayscale or RGB image and texturemap_file sho
 Examples
 
     ./hw1 heightmap/Heightmap.jpg
+
+    ./hw1 heightmap/color.jpg
+
     ./hw1 heightmap/Heightmap.jpg heightmap/Heightmap.jpg/color.jpg
+    
+    // Mount Fuji Fuji-0001 to Fuji-0009 in Examples
+    ./hw1 heightmap/mtFujiHeight-128.jpg heightmap/mtFujiHeight-1000.jpg
+    // Oahu Island Oahu-0001 to Oahu-0009 in Examples  
+    ./hw1 heightmap/Oahu-160x128.jpg heightmap/Oahu.jpg
 
 ### Windows
 
-For windows, just open the hw1.sln with visual studio, and change the command arguments for custom input. The input is simillar to MacOS
+For windows, just open the hw1.sln with visual studio, and change the command arguments for custom input. The input is simillar to MacOS. Default is 
+
+    ./heightmap/Oahu-160x128.jpg ./heightmap/Oahu.jpg
 
 ## Instructions
 
