@@ -48,39 +48,37 @@ For windows, just open the hw1.sln with visual studio, and change the command ar
 
 ## Instructions
 
-### Basic Modes
-- **Points Mode**: Press `1` to activate.
-- **Lines Mode**: Press `2` to activate.
-- **Triangles Mode**: Press `3` to activate.
+- **Points Mode**: Press '1'
+- **Lines Mode**: Press '2'
+- **Triangles Mode**: Press '3'
+- **Smooth Mode**: Press '4'. In this mode:
+  - '+' to multiply "scale" by 2x
+  - '-' to divide "scale" by 2x
+  - '9' to multiply "exponent" by 2x
+  - '0' to divide "exponent" by 2x
 
-### Smooth Mode
-Activate by pressing `4`. This mode allows for precision adjustments:
-- Press `+` to **multiply** the current "scale" by 2x.
-- Press `-` to **divide** the current "scale" by 2x.
-- Press `9` to **multiply** the current "exponent" by 2x.
-- Press `0` to **divide** the current "exponent" by 2x.
+**Rotation**
+- X and Y axes: Press and hold left mouse button and move the mouse.
+- Z axis: Press and hold middle mouse button and move the mouse.
 
-### Rotation Controls
-- **Rotate along the X and Y axes**: Press and hold the left mouse button, then move the mouse.
-- **Rotate along the Z axis**: Press and hold the middle mouse button, then move the mouse.
+**Scaling**
+- X and Y axes: Press and hold `Shift` + left mouse button and move.
+- Z axis: Press and hold `Shift` + middle mouse button and move.
 
-### Scaling Controls
-- **Scale along the X and Y axes**: Press and hold `Shift` + left mouse button, then move the mouse.
-- **Scale along the Z axis**: Press and hold `Shift` + middle mouse button, then move the mouse.
+**Translation (Windows)**
+- X and Y axes: Press and hold `Control` + left mouse button and move.
+- Z axis: Press and hold `Control` + middle mouse button and move.
 
-### Translation Controls
-#### Windows
-- **Translate along the X and Y axes**: Press and hold `Control` + left mouse button, then move the mouse.
-- **Translate along the Z axis**: Press and hold `Control` + middle mouse button, then move the mouse.
-
-#### MacOS
-- **Translate Mode**: Activate by pressing `t` (do not hold).
-    - **Translate along the X and Y axes**: In translate mode, press and hold the left mouse button, then move the mouse.
-    - **Translate along the Z axis**: In translate mode, press and hold the middle mouse button, then move the mouse.
+**Translation (MacOS)**
+- Activate: Press `t` (do not hold).
+  - X and Y axes: Press and hold left mouse button and move.
+  - Z axis: Press and hold middle mouse button and move.
 
 ## Instructions (For Extra Credit)
 
-
+- **Sca Mode**: Press `1` to activate.
+- **Lines Mode**: Press `2` to activate.
+- **Triangles Mode**: Press `3` to activate.
 
 ## Todo
 
