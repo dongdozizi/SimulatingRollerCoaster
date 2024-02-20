@@ -9,9 +9,24 @@ Height fields may be found in many applications of computer graphics. They are u
 
 This assignment is intended as a hands-on introduction to OpenGL and programming in three dimensions. It teaches the OpenGL's core profile and shader-based programming. The provided starter gives the functionality to initialize GLUT, read and write a JPEG image, handle mouse and keyboard input, and display one triangle to the screen. You must write code to handle camera transformations, transform the landscape (translate/rotate/scale), and render the heightfield. You must also write a shader to perform geometry smoothing and re-color the terrain accordingly. Please see the OpenGL Programming Guide for information, or OpenGL.org.
 
+## Basic features
+
+- Render the points mode.
+- Render the Lines mode.
+- Render the Triangles mode.
+- Render the smooth triangle mode and can scale and exponentiate the height in this mode.
+- Scale, translate and rotate the heightfield.
+
 ## Extra Credits
 
-
+- Use element arrays and glDrawElements to save the memory (Write helper class ebo.h and ebo.cpp in openGLHelper).
+- Support color (ImageIO::getBytesPerPixel == 3) in input heightfield images (Convert the RGB to grayscale by using formula in https://docs.opencv.org/4.x/de/d25/imgproc_color_conversions.html).
+- Render wireframe on top of solid triangles (use glPolygonOffset to avoid z-buffer fighting).
+- Color the vertices based on color values taken from another image of equal size (The color of the pixel in heightfield is the same pixel in the heightmap).
+- Texturemap the surface with an arbitrary image (Using glTexImage2D).
+- When using key "4", color the surface using the JetColorMap function, in the vertex shader. Speficially, change the grayscale color x to JetColorMap(x).
+- Can not only move the object but also moving the camera position and change the focus vector.
+- Can support image size that height and width are not the same.
 
 ## Main Files Description
  - README.md - Introduction of the project
@@ -40,6 +55,8 @@ For only heightmap, excecute
 For heightmap and enable texture mapping, excecute
 
     ./hw1 <heightmap_file> <texturemap_file>
+
+The heightmap_file should be only grayscale or RGB image and texturemap_file should be only RGB image.
 
 Examples
 
@@ -86,15 +103,8 @@ Press `t` to enable\disable the Translate mode
 - **Texturemap the surface with an image with image at same size (If compatible)**: Press `&` (`shift`+`7`)
 - **Reset the heightmap to initial view(Undo all the rotation, scaling and translation)**: Press `c`
 - **Enable moving camera**: Press 'v'. In this mode:
-  - 'w' to move the camera position ahead.
-  - 's' to move the camera position backward.
-  - 'a' to move the camera position left.
-  - 'd' to move the camera position right.
+  - `w` to move the camera position ahead.
+  - `s` to move the camera position backward.
+  - `a` to move the camera position left.
+  - `d` to move the camera position right.
   - Move the mouse to change the direction of the mouse (Look up, down, left, right).
-
-
-## 8. Team Member
- - Shidong Zhang
- - Baijia Ye
- - Ziyue Feng
- - Changyue Su
