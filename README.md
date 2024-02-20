@@ -102,7 +102,7 @@ Press `t` to enable\disable the Translate mode
 - **Texturemap the surface with an arbitrary image (If compatible)**: Press `7`
 - **Texturemap the surface with an image with image at same size (If compatible)**: Press `&` (`shift`+`7`)
 - **Reset the heightmap to initial view(Undo all the rotation, scaling and translation)**: Press `c`
-- **Enable moving camera**: Press 'v'. In this mode:
+- **Enable moving camera**: Press `v`. In this mode:
   - `w` to move the camera position ahead.
   - `s` to move the camera position backward.
   - `a` to move the camera position left.
