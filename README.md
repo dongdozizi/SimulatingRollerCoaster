@@ -50,23 +50,42 @@ For windows, just open the hw1.sln with visual studio, and change the command ar
 
 ### Must
 
-Press '1' for the points mode
+- **Points mode**: Press '1'
 
-Press '2' for the lines mode
+- **Lines mode**: Press '2'
 
-Press '3' for the triangles mode
+- **Triangles mode**: Press '3'
 
-Press '4' for the smooth mode
+- **Smooth mode**: Press '4'
 
-  In the smooth mode:
+In the smooth mode:
   
-    +    ... multiply the current "scale" by 2x
-    
-    -    ... divide the current "scale" by 2x
-    
-    9    ... multiply the current "exponent" by 2x
-    
-    0    ... divide the current "exponent" by 2x
+Press '+' to multiply the current "scale" by 2x
+
+Press '-' to divide the current "scale" by 2x
+
+Press '9' to multiply the current "exponent" by 2x
+
+Press '0' to divide the current "exponent" by 2x
+
+- **Rotate along the X and Y axes**: Press and hold the left mouse button, then move the mouse to rotate the heightfield along the X and Y axes.
+
+- **Rotate along the Z axis**: Press and hold the middle mouse button, then move the mouse to rotate the heightfield along the Z axis.
+
+- **Scale along the X and Y axes**: Press and hold the `Shift` key along with the left mouse button, then move the mouse to scale the heightfield along the X and Y axes.
+
+- **Scale along the Z axis**: Press and hold the `Shift` key along with the middle mouse button, then move the mouse to scale the heightfield along the Z axis.
+
+- **Translate along the X and Y axes (Windows)**: Press and hold the `Control` key along with the left mouse button, then move the mouse to translate the heightfield along the X and Y axes.
+
+- **Translate along the Z axis (Windows)**: Press and hold the `Control` key along with the middle mouse button, then move the mouse to translate the heightfield along the Z axis.
+
+- **Translate on MacOS**: To enable translate mode, press key 't' (Do not hold).
+
+- **Translate along the X and Y axes (MacOS)**: In translate mode, press and hold the left mouse button, then move the mouse to translate the heightfield along the X and Y axes.
+
+- **Translate along the Z axis (MacOS)**: In translate mode, press and hold the middle mouse button, then move the mouse to translate the heightfield along the Z axis.
+
 
 ### Extras
 
