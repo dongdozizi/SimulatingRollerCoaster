@@ -48,7 +48,6 @@ typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
 int screenShotCounter = 0;
-int renderType=1;
 bool enableCameraMov=false;
 float speed[2]={0.0,0.0};
 float eyeVec[3];
@@ -77,6 +76,14 @@ ImageIO* texturemapImage=nullptr;
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
 PipelineProgram * pipelineProgram = nullptr;
+
+// Number of Vertices, VBOs, VAOs and EBOs
+int numVertices;
+GLuint textureHandle;
+VBO * vboVertices = nullptr;
+VBO * vboColors = nullptr;
+EBO * ebo = nullptr;
+VAO * vao = nullptr;
 
 // represents one control point along the spline 
 struct Point 
@@ -480,12 +487,10 @@ void displayFunc()
     pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
     pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
 
-    // Set render type, if is 4 then render the smooth
-    pipelineProgram->SetUniformVariablei("renderType",renderType);
-
     // Execute the rendering.
     // Bind the VAO that we want to render. Remember, one object = one VAO. 
-    
+    vao->Bind();
+    glDrawElements(GL_TRIANGLES,numVertices,GL_UNSIGNED_INT,0);
     // Swap the double-buffers.
     glutSwapBuffers();
 }
@@ -567,6 +572,26 @@ int initTexture(const char * imageFilename, GLuint textureHandle)
     return 0;
 }
 
+void initDemo(){
+    numVertices = 3; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
+    float positions[9]={0.0f,0.0f,0.0f,
+                        1.0f,0.0f,0.0f,
+                        0.0f,0.0f,1.0f};
+    float colors[12]={1.0f,1.0f,1.0f,1.0f,
+                      1.0f,1.0f,1.0f,1.0f,
+                      1.0f,1.0f,1.0f,1.0f};
+    unsigned int elements[3]={0,1,2};
+
+    vboVertices = new VBO(numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColors = new VBO(numVertices, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
+    vao = new VAO();
+
+    vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVertices, "position");
+    vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColors, "color");
+    ebo = new EBO(numVertices,elements,GL_STATIC_DRAW); //Bind the EBO
+
+}
+
 void initScene(int argc, char *argv[])
 {
     if (argc<2)
@@ -609,10 +634,7 @@ void initScene(int argc, char *argv[])
     // From that point on, exactly one pipeline program is bound at any moment of time.
     pipelineProgram->Bind();
 
-    // Initialize variables in LookAt function
-    // eyeVec[0]=0.5,eyeVec[1]=0.5,eyeVec[2]=0.5;
-    // focusVec[0]=0.0,focusVec[1]=-0.5,focusVec[2]=-1.0;
-    // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
+    initDemo();
 
     // Initialize variables in LookAt function
     eyeVec[0]=0.0,eyeVec[1]=1.3,eyeVec[2]=1.7;
