@@ -68,11 +68,7 @@ float terrainScale[3] = { 1.0f, 1.0f, 1.0f };
 // Width and height of the OpenGL window, in pixels.
 int windowWidth = 1280;
 int windowHeight = 720;
-char windowTitle[512] = "CSCI 420 Homework 1";
-
-// Stores the image loaded from disk.
-ImageIO* heightmapImage = nullptr;
-ImageIO* texturemapImage = nullptr;
+char windowTitle[512] = "CSCI 420 Homework 2";
 
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
@@ -564,22 +560,35 @@ void displayFunc()
     // Bind the VAO that we want to render. Remember, one object = one VAO. 
 
     vao->Bind();
-    glDrawElements(GL_POINTS, numVertices, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
+    glDrawElements(GL_LINES, numVertices, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
 
     // Swap the double-buffers.
     glutSwapBuffers();
 }
 
-void initPoint(float* positions, float* colors) {
+void initPoint() {
 
+    numVertices = 4; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
+
+    float* positions = (float*)malloc(numVertices * 3 * sizeof(float)); // 3 floats per vertex, i.e., x,y,z
+    float* colors = (float*)malloc(numVertices * 4 * sizeof(float)); // 4 floats per vertex, i.e., r,g,b,a
     unsigned int* elements = (unsigned int*)malloc(numVertices * sizeof(unsigned int)); // initialize elements array
 
-    //The elements for point is just 0,1,2,...,numVerticesPoint-1.
-    for (int i = 0; i < heightmapImage->getHeight(); i++) {
-        for (int j = 0; j < heightmapImage->getWidth(); j++) {
-            int pos = i * heightmapImage->getWidth() + j;
-            elements[pos] = pos;
-        }
+    for (int i = 0; i < numVertices*3; i += 3) {
+        positions[i] = 1.0*i/6.0;
+        positions[i + 1] = 1.0*i/6.0;
+        positions[i + 2] = 0.0;
+    }
+
+    for (int i = 0; i < numVertices*4; i+=4) {
+        colors[i] = 1.0;
+        colors[i+1] = 1.0;
+        colors[i+2] = 1.0;
+        colors[i+3] = 1.0;
+    }
+
+    for (int i = 0; i < numVertices; i++) {
+        elements[i] = i;
     }
 
     vboVertices = new VBO(numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position
@@ -591,7 +600,9 @@ void initPoint(float* positions, float* colors) {
     vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColors, "color");
     ebo = new EBO(numVertices, elements, GL_STATIC_DRAW); //Bind the EBO
 
-    //Free the elements;
+    // We don't need this data any more, as we have already uploaded it to the VBO. And so we can destroy it, to avoid a memory leak.
+    free(positions);
+    free(colors);
     free(elements);
 }
 
@@ -625,15 +636,7 @@ void initScene(int argc, char* argv[])
     // From that point on, exactly one pipeline program is bound at any moment of time.
     pipelineProgram->Bind();
 
-    numVertices = ; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
-    float* positions = (float*)malloc(numVertices * 3 * sizeof(float)); // 3 floats per vertex, i.e., x,y,z
-    float* colors = (float*)malloc(numVertices * 4 * sizeof(float)); // 4 floats per vertex, i.e., r,g,b,a
-
-    initPoint(positions, colors); //Create the point VAO,VBO,EBO
-
-    // We don't need this data any more, as we have already uploaded it to the VBO. And so we can destroy it, to avoid a memory leak.
-    free(positions);
-    free(colors);
+    initPoint();
 
     // Initialize variables in LookAt function
     // eyeVec[0]=0.5,eyeVec[1]=0.5,eyeVec[2]=0.5;
@@ -641,8 +644,8 @@ void initScene(int argc, char* argv[])
     // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Initialize variables in LookAt function
-    eyeVec[0] = 0.0, eyeVec[1] = 1.3, eyeVec[2] = 1.7;
-    focusVec[0] = 0.0, focusVec[1] = -1.3, focusVec[2] = -1.7;
+    eyeVec[0] = 0.0, eyeVec[1] = 0.0, eyeVec[2] = 1.0;
+    focusVec[0] = 0.0, focusVec[1] = 0.0, focusVec[2] = -1.0;
     upVec[0] = 0.0, upVec[1] = 1.0, upVec[2] = 0.0;
 
     // Normalize the focusVec

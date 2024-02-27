@@ -8,19 +8,19 @@ using namespace std;
 
 VAO::VAO()
 {
-  // Create the VAO handle 
-  glGenVertexArrays(1, &handle);
+    // Create the VAO handle 
+    glGenVertexArrays(1, &handle);
 }
 
 VAO::~VAO()
 {
-  // Delete the VAO.
-  glDeleteVertexArrays(1, &handle);
+    // Delete the VAO.
+    glDeleteVertexArrays(1, &handle);
 }
 
 void VAO::Bind()
 {
-  glBindVertexArray(handle);
+    glBindVertexArray(handle);
 }
 
 void VAO::ConnectPipelineProgramAndVBOAndShaderVariable(PipelineProgram * pipelineProgram, VBO * vbo, const char * shaderVariable)
