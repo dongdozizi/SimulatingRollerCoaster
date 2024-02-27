@@ -18,8 +18,10 @@
 #include <iostream>
 #include <cstring>
 #include <cmath>
+#include <vector>
 
 #include <glm/glm.hpp>
+#include <glm/gtx/norm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
 #if defined(WIN32) || defined(_WIN32)
@@ -46,6 +48,11 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
+
+// Catmull-Rom Spline Matrix
+double catmullMatrix[16];
+double catmullS = 0.5;
+double maxLength = 0.001; // The maximum length for drawing lines in Spline
 
 int screenShotCounter = 0;
 int renderType = 1;
@@ -104,10 +111,6 @@ void autoSave() {
         saveScreenshot(filename);
     }
 }
-
-int frameCount = 0;
-double lastTime = 0;
-double fps = 0;
 
 // Represents one spline control point.
 struct Point
@@ -252,6 +255,10 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
 
     return 0;
 }
+
+int frameCount = 0;
+double lastTime = 0;
+double fps = 0;
 
 void idleFunc()
 {
@@ -566,42 +573,79 @@ void displayFunc()
     glutSwapBuffers();
 }
 
-void initPoint() {
+void subdivideDrawSpline(double u0, double u1, float maxLengthSquare, double* controlMatrix, vector<float>& lineVec, unsigned char depth) {
+    // To make sure the depth of recursion not so deep.
+    if (depth >= 30) return;
 
-    numVertices = 4; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
+    double vu0[4] = { u0 * u0 * u0, u0 * u0, u0, 1.0 };
+    double vu1[4] = { u1 * u1 * u1, u1 * u1, u1, 1.0 };
+    double x0[3],x1[3];
+    
+    MultiplyMatrices(1, 4, 3, vu0, controlMatrix, x0);
+    MultiplyMatrices(1, 4, 3, vu1, controlMatrix, x1);
 
-    float* positions = (float*)malloc(numVertices * 3 * sizeof(float)); // 3 floats per vertex, i.e., x,y,z
-    float* colors = (float*)malloc(numVertices * 4 * sizeof(float)); // 4 floats per vertex, i.e., r,g,b,a
-    unsigned int* elements = (unsigned int*)malloc(numVertices * sizeof(unsigned int)); // initialize elements array
+    double squareSum = 0;
+    for (int i = 0; i < 3; i++) squareSum += (vu0[i] - vu1[i]) * (vu0[i] - vu1[i]);
 
-    for (int i = 0; i < numVertices*3; i += 3) {
-        positions[i] = 1.0*i/6.0;
-        positions[i + 1] = 1.0*i/6.0;
-        positions[i + 2] = 0.0;
+    if (squareSum > maxLengthSquare) {
+        double umid = (u0 + u1) / 2.0;
+        subdivideDrawSpline(u0, umid, maxLengthSquare, controlMatrix, lineVec, depth + 1);
+        subdivideDrawSpline(umid, u1, maxLengthSquare, controlMatrix, lineVec, depth + 1);
     }
-
-    for (int i = 0; i < numVertices*4; i+=4) {
-        colors[i] = 1.0;
-        colors[i+1] = 1.0;
-        colors[i+2] = 1.0;
-        colors[i+3] = 1.0;
+    else {
+        //cout << u0 << "," << u1 << " - ";
+        //cout << "(" << x0[0] << "," << x0[1] << "," << x0[2] << ") ";
+        //cout << "(" << x1[0] << "," << x1[1] << "," << x1[2] << ")\n";
+        for (int i = 0; i < 3; i++) {
+            lineVec.push_back(x0[i]);
+        }
+        for (int i = 0; i < 3; i++) {
+            lineVec.push_back(x1[i]);
+        }
     }
+}
 
-    for (int i = 0; i < numVertices; i++) {
-        elements[i] = i;
+void initDemo() {
+    vector<float> points;
+    // glm::mat3x4 a34;
+    // for(int i=0;i<3;i++){
+    //     for(int j=0;j<4;j++) a34[i][j]=i*4.0+j*1.0;
+    // }
+    // for(int i=0;i<3;i++){
+    //     for(int j=0;j<4;j++) cout<<a34[i][j]<<" ";cout<<"\n";
+    // }
+    // glm::vec4 v4(1.0,1.0,1.0,1.0);
+    // glm::vec3 v3=v4*a34;
+    // cout<<v3.x<<" "<<v3.y<<" "<<v3.z<<"\n";
+    for (int i = 1; i + 2 < spline.numControlPoints; i++) {
+        double controlMatrix[12] = { spline.points[i].x,spline.points[i + 1].x,spline.points[i + 2].x,spline.points[i + 2].x,
+                                     spline.points[i].y,spline.points[i + 1].y,spline.points[i + 2].y,spline.points[i + 2].y,
+                                     spline.points[i].z,spline.points[i + 1].z,spline.points[i + 2].z,spline.points[i + 2].z };
+        double mulMatrix[12];
+        MultiplyMatrices(4,4,3,catmullMatrix,controlMatrix,mulMatrix);
+
+        subdivideDrawSpline(0.0, 1.0, 0.1, mulMatrix, points, 0);
     }
+    numVertices = points.size() / 3; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
 
-    vboVertices = new VBO(numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position
-    vboColors = new VBO(numVertices, 4, colors, GL_STATIC_DRAW); // 4 values per color    
+    cout << "There are " << numVertices << " vertices generated.\n";
 
+    float* positions = (float*)malloc(numVertices * sizeof(unsigned int) * 3);
+    float* colors = (float*)malloc(numVertices * sizeof(unsigned int) * 4);
+    unsigned int* elements = (unsigned int*)malloc(numVertices * sizeof(unsigned int));
+
+    for (int i = 0; i < numVertices * 3; i++) positions[i] = points[i];
+    for (int i = 0; i < numVertices * 4; i++) colors[i] = 1.0;
+    for (int i = 0; i < numVertices; i++) elements[i] = i;
+
+    vboVertices = new VBO(numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColors = new VBO(numVertices, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
     vao = new VAO();
 
     vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVertices, "position");
     vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColors, "color");
     ebo = new EBO(numVertices, elements, GL_STATIC_DRAW); //Bind the EBO
 
-    // We don't need this data any more, as we have already uploaded it to the VBO. And so we can destroy it, to avoid a memory leak.
-    free(positions);
     free(colors);
     free(elements);
 }
@@ -636,7 +680,13 @@ void initScene(int argc, char* argv[])
     // From that point on, exactly one pipeline program is bound at any moment of time.
     pipelineProgram->Bind();
 
-    initPoint();
+    // Initialize the Catmull-Rom Spline Matrix
+    catmullMatrix[0]= -catmullS, catmullMatrix[4]= 2 - catmullS, catmullMatrix[8]= catmullS - 2, catmullMatrix[12] = catmullS;
+    catmullMatrix[1]= 2 * catmullS, catmullMatrix[5]= catmullS - 3, catmullMatrix[9]= 3 - 2 * catmullS, catmullMatrix[13] = -catmullS;
+    catmullMatrix[2]= -catmullS, catmullMatrix[6]= 0, catmullMatrix[10]= catmullS, catmullMatrix[14] = 0;
+    catmullMatrix[3] = 0, catmullMatrix[7] = 1, catmullMatrix[11] = 0, catmullMatrix[15] = 0;
+
+    initDemo();
 
     // Initialize variables in LookAt function
     // eyeVec[0]=0.5,eyeVec[1]=0.5,eyeVec[2]=0.5;
@@ -644,8 +694,8 @@ void initScene(int argc, char* argv[])
     // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Initialize variables in LookAt function
-    eyeVec[0] = 0.0, eyeVec[1] = 0.0, eyeVec[2] = 1.0;
-    focusVec[0] = 0.0, focusVec[1] = 0.0, focusVec[2] = -1.0;
+    eyeVec[0] = 0.0, eyeVec[1] = 1.0, eyeVec[2] = 1.0;
+    focusVec[0] = 0.0, focusVec[1] = -1.0, focusVec[2] = -1.0;
     upVec[0] = 0.0, upVec[1] = 1.0, upVec[2] = 0.0;
 
     // Normalize the focusVec
