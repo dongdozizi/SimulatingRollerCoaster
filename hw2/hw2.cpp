@@ -470,8 +470,12 @@ void keyboardFunc(unsigned char key, int x, int y)
 
     case 'v': //Enable Moving the camera
         speed[0] = speed[1] = 0.0;
-        if (enableCameraMov) enableCameraMov = false;
-        else enableCameraMov = true;
+        if (enableCameraMov){
+            enableCameraMov = false;
+        }
+        else{
+            enableCameraMov = true;
+        }
         break;
 
     case ' ':
