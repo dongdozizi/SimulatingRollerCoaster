@@ -57,6 +57,7 @@ double maxLength = 0.001; // The maximum length for drawing lines in Spline
 int screenShotCounter = 0;
 int renderType = 1;
 bool enableCameraMov = false;
+float minimumSpeed=0.02;
 float speed[2] = { 0.0,0.0 };
 float eyeVec[3];
 float focusVec[3];
@@ -446,19 +447,19 @@ void keyboardFunc(unsigned char key, int x, int y)
         break;
 
     case 'w': //Going forward
-        speed[0] = min(speed[0] + 0.002, 0.004);
+        speed[0] = min(speed[0] + minimumSpeed, 2.0f*minimumSpeed);
         break;
 
     case 's': //Going backward
-        speed[0] = max(speed[0] - 0.002, -0.004);
+        speed[0] = max(speed[0] - minimumSpeed, -2.0f*minimumSpeed);
         break;
 
     case 'a': //Going Left
-        speed[1] = max(speed[1] - 0.002, -0.004);
+        speed[1] = max(speed[1] - minimumSpeed, -2.0f*minimumSpeed);
         break;
 
     case 'd': //Going Right
-        speed[1] = min(speed[1] + 0.002, 0.004);
+        speed[1] = min(speed[1] + minimumSpeed, 2.0f*minimumSpeed);
         break;
 
     case 'c': //Set to initial view.
@@ -593,9 +594,10 @@ void subdivideDrawSpline(double u0, double u1, float maxLengthSquare, double* co
         subdivideDrawSpline(umid, u1, maxLengthSquare, controlMatrix, lineVec, depth + 1);
     }
     else {
-        //cout << u0 << "," << u1 << " - ";
-        //cout << "(" << x0[0] << "," << x0[1] << "," << x0[2] << ") ";
-        //cout << "(" << x1[0] << "," << x1[1] << "," << x1[2] << ")\n";
+        // cout<<squareSum<<" - ";
+        // cout << u0 << "," << u1 << " - ";
+        // cout << "(" << x0[0] << "," << x0[1] << "," << x0[2] << ") ";
+        // cout << "(" << x1[0] << "," << x1[1] << "," << x1[2] << ")\n";
         for (int i = 0; i < 3; i++) {
             lineVec.push_back(x0[i]);
         }
@@ -617,14 +619,13 @@ void initDemo() {
     // glm::vec4 v4(1.0,1.0,1.0,1.0);
     // glm::vec3 v3=v4*a34;
     // cout<<v3.x<<" "<<v3.y<<" "<<v3.z<<"\n";
-    for (int i = 1; i + 2 < spline.numControlPoints; i++) {
-        double controlMatrix[12] = { spline.points[i].x,spline.points[i + 1].x,spline.points[i + 2].x,spline.points[i + 2].x,
-                                     spline.points[i].y,spline.points[i + 1].y,spline.points[i + 2].y,spline.points[i + 2].y,
-                                     spline.points[i].z,spline.points[i + 1].z,spline.points[i + 2].z,spline.points[i + 2].z };
+    for (int i = 0; i + 3 < spline.numControlPoints; i++) {
+        double controlMatrix[12] = { spline.points[i].x,spline.points[i + 1].x,spline.points[i + 2].x,spline.points[i + 3].x,
+                                     spline.points[i].y,spline.points[i + 1].y,spline.points[i + 2].y,spline.points[i + 3].y,
+                                     spline.points[i].z,spline.points[i + 1].z,spline.points[i + 2].z,spline.points[i + 3].z };
         double mulMatrix[12];
         MultiplyMatrices(4,4,3,catmullMatrix,controlMatrix,mulMatrix);
-
-        subdivideDrawSpline(0.0, 1.0, 0.1, mulMatrix, points, 0);
+        subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix, points, 0);
     }
     numVertices = points.size() / 3; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
 
@@ -694,8 +695,8 @@ void initScene(int argc, char* argv[])
     // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
 
     // Initialize variables in LookAt function
-    eyeVec[0] = 0.0, eyeVec[1] = 1.0, eyeVec[2] = 1.0;
-    focusVec[0] = 0.0, focusVec[1] = -1.0, focusVec[2] = -1.0;
+    eyeVec[0] = 0.0, eyeVec[1] = 2.0, eyeVec[2] = 0.5;
+    focusVec[0] = 0.0, focusVec[1] = -2.0, focusVec[2] = -0.5;
     upVec[0] = 0.0, upVec[1] = 1.0, upVec[2] = 0.0;
 
     // Normalize the focusVec
