@@ -23,6 +23,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/transform.hpp>
 
 #if defined(WIN32) || defined(_WIN32)
 #ifdef _DEBUG
@@ -50,18 +51,28 @@ typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
 
 // Catmull-Rom Spline Matrix
-double catmullMatrix[16];
+glm::mat4 catmullMatrix;
 double catmullS = 0.5;
 double maxLength = 0.001; // The maximum length for drawing lines in Spline
+vector<glm::mat3x4> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
 int renderType = 1;
-bool enableCameraMov = false;
-float minimumSpeed=0.02;
-float speed[2] = { 0.0,0.0 };
-float eyeVec[3];
-float focusVec[3];
-float upVec[3];
+bool enableCameraMov = false; // true when enable moving camera
+
+float lastTime=0.0; // last time render the window
+float rollerMinSpeed=1.0; // minimum speed when start the roller coaster
+float rollerSpeed=0.0; // speed of roller coaster (per second not per frame)
+glm::vec3 rollerPos; // position of rollercoaster
+glm::vec3 tangentVec; // tangent vector
+glm::vec3 binormalVec; // binormal vector
+glm::vec3 normalVec; // normal vector
+
+float camMaxSpeed=2.0; // minimum speed when moving camera (per second not per frame)
+glm::vec2 camSpeed(0.0f,0.0f); // Speed of camera when enable moving camera
+glm::vec3 eyeVec; // camera position
+glm::vec3 focusVec; // focus vector
+glm::vec3 upVec; // up vector, also normal vector for roller coaster, when enable moving camera it is (0,1,0)
 
 // Rotate the camera
 float focusRotate[3] = { 0.0f,0.0f,0.0f };
@@ -82,12 +93,144 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 OpenGLMatrix matrix;
 PipelineProgram* pipelineProgram = nullptr;
 
-// Number of Vertices, VBOs, VAOs and EBOs
-int numVertices;
-VBO* vboVertices = nullptr;
-VBO* vboColors = nullptr;
-EBO* ebo = nullptr;
-VAO* vao = nullptr;
+// Spline VBOs, VAO and EBO
+int numVertices; // number of points generated
+int numVerticesLine; // number of vertices in line
+VBO* vboVerticesSpline = nullptr;
+VBO* vboColorsSpline = nullptr;
+EBO* eboSpline = nullptr;
+VAO* vaoSpline = nullptr;
+vector<float> splinePoints; // spline points
+
+// Represents one spline control point.
+struct Point
+{
+    double x, y, z;
+};
+
+// Contains the control points of the spline.
+struct Spline
+{
+    int numControlPoints;
+    Point* points;
+} spline;
+
+// Load spline
+void loadSpline(char* argv);
+
+// Write a screenshot to the specified filename.
+void saveScreenshot(const char* filename);
+
+// Save screenshot in increasing number 0001,0002,0003....
+void autoSave();
+
+// Initialize the texture with texture file name and texture handle
+int initTexture(const char* imageFilename, GLuint textureHandle);
+
+int frameCount = 0;
+double lastTimeSave = 0; // last time when saving images
+double fps = 0;
+
+void idleFunc();
+
+void reshapeFunc(int w, int h);
+
+void mouseMotionDragFunc(int x, int y);
+
+void mouseMotionFunc(int x, int y);
+
+void mouseButtonFunc(int button, int state, int x, int y);
+
+void keyboardFunc(unsigned char key, int x, int y);
+
+// Modify the focus vector and camera when enable the camera move
+void modifyFocusAndCamera();
+
+void displayFunc();
+
+// Set the spline points with divide and conquer
+void subdivideDrawSpline(double u0, double u1, float maxLengthSquare, double* controlMatrix, vector<float>& lineVec, unsigned char depth);
+
+// Initialize the spline vertices
+void initSpline();
+
+// Set the default value of rollercoaster camera
+void setDefaultRollerCamera();
+
+void initScene(int argc, char* argv[]);
+
+int main(int argc, char* argv[])
+{
+
+    if (argc < 2)
+    {
+        printf("Usage: %s <spline file>\n", argv[0]);
+        exit(0);
+    }
+
+    // Load spline from the provided filename.
+    loadSpline(argv[1]);
+
+    printf("Loaded spline with %d control point(s).\n", spline.numControlPoints);
+
+    cout << "Initializing GLUT..." << endl;
+    glutInit(&argc, argv);
+
+    cout << "Initializing OpenGL..." << endl;
+
+#ifdef __APPLE__
+    glutInitDisplayMode(GLUT_3_2_CORE_PROFILE | GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
+#else
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
+#endif
+
+    glutInitWindowSize(windowWidth, windowHeight);
+    glutInitWindowPosition(0, 0);
+    glutCreateWindow(windowTitle);
+
+    cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
+    cout << "OpenGL Renderer: " << glGetString(GL_RENDERER) << endl;
+    cout << "Shading Language Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
+
+#ifdef __APPLE__
+    // This is needed on recent Mac OS X versions to correctly display the window.
+    glutReshapeWindow(windowWidth - 1, windowHeight - 1);
+#endif
+
+    // Tells GLUT to use a particular display function to redraw.
+    glutDisplayFunc(displayFunc);
+    // Perform animation inside idleFunc.
+    glutIdleFunc(idleFunc);
+    // callback for mouse drags
+    glutMotionFunc(mouseMotionDragFunc);
+    // callback for idle mouse movement
+    glutPassiveMotionFunc(mouseMotionFunc);
+    // callback for mouse button changes
+    glutMouseFunc(mouseButtonFunc);
+    // callback for resizing the window
+    glutReshapeFunc(reshapeFunc);
+    // callback for pressing the keys on the keyboard
+    glutKeyboardFunc(keyboardFunc);
+
+    // init glew
+#ifdef __APPLE__
+    // nothing is needed on Apple
+#else
+    // Windows, Linux
+    GLint result = glewInit();
+    if (result != GLEW_OK)
+    {
+        cout << "error: " << glewGetErrorString(result) << endl;
+        exit(EXIT_FAILURE);
+    }
+#endif
+
+    // Perform the initialization.
+    initScene(argc, argv);
+
+    // Sink forever into the GLUT loop.
+    glutMainLoop();
+}
 
 // Write a screenshot to the specified filename.
 void saveScreenshot(const char* filename)
@@ -112,19 +255,6 @@ void autoSave() {
         saveScreenshot(filename);
     }
 }
-
-// Represents one spline control point.
-struct Point
-{
-    double x, y, z;
-};
-
-// Contains the control points of the spline.
-struct Spline
-{
-    int numControlPoints;
-    Point* points;
-} spline;
 
 void loadSpline(char* argv)
 {
@@ -151,31 +281,6 @@ void loadSpline(char* argv)
         {
             printf("Error: incorrect number of control points in file %s.\n", argv);
             exit(1);
-        }
-    }
-}
-
-// Multiply C = A * B, where A is a m x p matrix, and B is a p x n matrix.
-// All matrices A, B, C must be pre-allocated (say, using malloc or similar).
-// The memory storage for C must *not* overlap in memory with either A or B. 
-// That is, you **cannot** do C = A * C, or C = C * B. However, A and B can overlap, and so C = A * A is fine, as long as the memory buffer for A is not overlaping in memory with that of C.
-// Very important: All matrices are stored in **column-major** format.
-// Example. Suppose 
-//        [ 1 8 2 ]
-//    A = [ 3 5 7 ]
-//        [ 0 2 4 ]
-//    Then, the storage in memory is
-//     1, 3, 0, 8, 5, 2, 2, 7, 4. 
-void MultiplyMatrices(int m, int p, int n, const double* A, const double* B, double* C)
-{
-    for (int i = 0; i < m; i++)
-    {
-        for (int j = 0; j < n; j++)
-        {
-            double entry = 0.0;
-            for (int k = 0; k < p; k++)
-                entry += A[k * m + i] * B[j * p + k];
-            C[m * j + i] = entry;
         }
     }
 }
@@ -257,10 +362,6 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
     return 0;
 }
 
-int frameCount = 0;
-double lastTime = 0;
-double fps = 0;
-
 void idleFunc()
 {
     // Do some stuff... 
@@ -269,11 +370,11 @@ void idleFunc()
     // Notify GLUT that it should call displayFunc.
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
     ++frameCount;
-    double timeInterval = currentTime - lastTime;
+    double timeInterval = currentTime - lastTimeSave;
 
     if (timeInterval > 1.0 / 10.0) {
         //autoSave();
-        lastTime = currentTime;
+        lastTimeSave = currentTime;
     }
 
     //if (timeInterval > 1.0) {
@@ -446,20 +547,20 @@ void keyboardFunc(unsigned char key, int x, int y)
         exit(0); // exit the program
         break;
 
-    case 'w': //Going forward
-        speed[0] = min(speed[0] + minimumSpeed, 2.0f*minimumSpeed);
+    case 'w': //Going forward 
+        camSpeed[0] = min(camSpeed[0] + 0.5f, 1.0f);
         break;
 
     case 's': //Going backward
-        speed[0] = max(speed[0] - minimumSpeed, -2.0f*minimumSpeed);
+        camSpeed[0] = max(camSpeed[0] - 0.5f, -1.0f);
         break;
 
     case 'a': //Going Left
-        speed[1] = max(speed[1] - minimumSpeed, -2.0f*minimumSpeed);
+        camSpeed[1] = max(camSpeed[1] - 0.5f, -1.0f);
         break;
 
     case 'd': //Going Right
-        speed[1] = min(speed[1] + minimumSpeed, 2.0f*minimumSpeed);
+        camSpeed[1] = min(camSpeed[1] + 0.5f, 1.0f);
         break;
 
     case 'c': //Set to initial view.
@@ -469,17 +570,20 @@ void keyboardFunc(unsigned char key, int x, int y)
         break;
 
     case 'v': //Enable Moving the camera
-        speed[0] = speed[1] = 0.0;
+        camSpeed[0] = camSpeed[1] = 0.0;
         if (enableCameraMov){
+            focusVec=tangentVec;
             enableCameraMov = false;
         }
         else{
+            focusVec=glm::vec3(-1.0f,0.0f,0.0f);
             enableCameraMov = true;
         }
         break;
 
-    case ' ':
-        cout << "You pressed the spacebar." << endl;
+    case ' ': // Start or Stop the roller coaster
+        if(rollerSpeed>0.0) rollerSpeed=0.0;
+        else rollerSpeed=rollerMinSpeed;
         break;
 
     case 'x':
@@ -490,55 +594,47 @@ void keyboardFunc(unsigned char key, int x, int y)
     }
 }
 
-void modifyFocusAndCamera() {
-
-    float verticalVec[3] = { -focusVec[2],0,focusVec[0] };
-
-    // change the camera position
-    for (int i = 0; i < 3; i++) {
-        eyeVec[i] += 1.0 * speed[0] * focusVec[i];
-        eyeVec[i] += 1.0 * speed[1] * verticalVec[i];
+void modifyFocusAndCamera(float timeInterval,glm::vec3 upVec) {
+    
+    // Moving the camera
+    if(enableCameraMov){
+        glm::vec3 verticalVec(-focusVec[2],0,focusVec[0]);
+        eyeVec+=1.0f*timeInterval*(camSpeed[0]*focusVec+camSpeed[1]*verticalVec);
     }
 
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-
-    // Modify the focus vector.
-    matrix.LoadIdentity();
-    matrix.Rotate(focusRotate[0], focusVec[2], 0.0, -focusVec[0]);
-    matrix.Rotate(focusRotate[1], 0.0, -1.0, 0.0);
-
-    float tmpMatrix[16];
-    matrix.GetMatrix(tmpMatrix);
-    glm::mat4 rotateMatrix = glm::make_mat4(tmpMatrix);
-    glm::vec4 tmpFocus(focusVec[0], focusVec[1], focusVec[2], 1.0f);
-
+    glm::mat4 transformMat(1.0f);
+    transformMat=transformMat*glm::rotate(glm::radians(focusRotate[0]),upVec);
+    glm::vec3 normalVec=glm::cross(upVec,focusVec);
+    transformMat=transformMat*glm::rotate(glm::radians(focusRotate[1]),normalVec);
+    // matrix.Rotate(focusRotate[0], focusVec[2], 0.0, -focusVec[0]);
+    // matrix.Rotate(focusRotate[1], 0.0, -1.0, 0.0);
+    
     // Multiply the rotate matrix with the focus vector to get the rotated vector
-    tmpFocus = rotateMatrix * tmpFocus;
-
-    for (int i = 0; i < 3; i++) {
-        focusVec[i] = tmpFocus[i];
-        focusRotate[i] = 0;
-    }
+    focusVec=glm::vec3(transformMat*glm::vec4(focusVec,0.0f));
+    
 }
 
 void displayFunc()
 {
     // This function performs the actual rendering.
 
+    // Calculate the time interval and refresh the last time
+    float currentTime=glutGet(GLUT_ELAPSED_TIME) * 0.001;
+    float timeInterval=currentTime-lastTime;
+    lastTime=currentTime;
+
     // First, clear the screen.
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    if (enableCameraMov) {
-        modifyFocusAndCamera();
-    }
+    modifyFocusAndCamera(timeInterval,upVec);
 
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
     // Set up the camera position, focus point, and the up vector.
     matrix.LoadIdentity();
     // View
     matrix.LookAt(eyeVec[0], eyeVec[1], eyeVec[2],
-        eyeVec[0] + focusVec[0], eyeVec[1] + focusVec[1], eyeVec[2] + focusVec[2],
-        upVec[0], upVec[1], upVec[2]);
+                  eyeVec[0] + focusVec[0], eyeVec[1] + focusVec[1], eyeVec[2] + focusVec[2],
+                  upVec[0], upVec[1], upVec[2]);
 
     // Model
     //matrix.Translate(terrainTranslate[0], terrainTranslate[1], terrainTranslate[2]);
@@ -571,86 +667,96 @@ void displayFunc()
     // Execute the rendering.
     // Bind the VAO that we want to render. Remember, one object = one VAO. 
 
-    vao->Bind();
-    glDrawElements(GL_LINES, numVertices, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
+    vaoSpline->Bind();
+    glDrawElements(GL_LINES, numVerticesLine, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
 
     // Swap the double-buffers.
     glutSwapBuffers();
 }
 
-void subdivideDrawSpline(double u0, double u1, float maxLengthSquare, double* controlMatrix, vector<float>& lineVec, unsigned char depth) {
+void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat3x4 multMatrix, vector<float>& lineVec, unsigned char depth) {
     // To make sure the depth of recursion not so deep.
     if (depth >= 30) return;
 
-    double vu0[4] = { u0 * u0 * u0, u0 * u0, u0, 1.0 };
-    double vu1[4] = { u1 * u1 * u1, u1 * u1, u1, 1.0 };
-    double x0[3],x1[3];
-    
-    MultiplyMatrices(1, 4, 3, vu0, controlMatrix, x0);
-    MultiplyMatrices(1, 4, 3, vu1, controlMatrix, x1);
+    glm::vec4 vu0(u0 * u0 * u0, u0 * u0, u0, 1.0f );
+    glm::vec4 vu1(u1 * u1 * u1, u1 * u1, u1, 1.0);
+    glm::vec3 x0=vu0*multMatrix;
+    glm::vec3 x1=vu1*multMatrix;
 
-    double squareSum = 0;
-    for (int i = 0; i < 3; i++) squareSum += (vu0[i] - vu1[i]) * (vu0[i] - vu1[i]);
+    cout<<"("<<x0[0]<<","<<x0[1]<<","<<x0[2]<<") ";
+
+    cout<<"("<<vu0[0]<<","<<vu0[1]<<","<<vu0[2]<<","<<vu0[3]<<")";
+
+    for(int i=0;i<3;i++){
+        for(int j=0;j<4;j++){
+            cout<<multMatrix[i][j]<<" ";
+        }cout<<"\n";
+    }
+
+    // Calculate the square of the different between x0 and x1
+    double squareSum = glm::length2((x0-x1));
 
     if (squareSum > maxLengthSquare) {
         double umid = (u0 + u1) / 2.0;
-        subdivideDrawSpline(u0, umid, maxLengthSquare, controlMatrix, lineVec, depth + 1);
-        subdivideDrawSpline(umid, u1, maxLengthSquare, controlMatrix, lineVec, depth + 1);
+        subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, lineVec, depth + 1);
+        subdivideDrawSpline(umid, u1, maxLengthSquare, multMatrix, lineVec, depth + 1);
     }
     else {
-        // cout<<squareSum<<" - ";
-        // cout << u0 << "," << u1 << " - ";
-        // cout << "(" << x0[0] << "," << x0[1] << "," << x0[2] << ") ";
-        // cout << "(" << x1[0] << "," << x1[1] << "," << x1[2] << ")\n";
+        // only save the left point of a line
         for (int i = 0; i < 3; i++) {
             lineVec.push_back(x0[i]);
-        }
-        for (int i = 0; i < 3; i++) {
-            lineVec.push_back(x1[i]);
         }
     }
 }
 
-void initDemo() {
-    vector<float> points;
-    // glm::mat3x4 a34;
-    // for(int i=0;i<3;i++){
-    //     for(int j=0;j<4;j++) a34[i][j]=i*4.0+j*1.0;
-    // }
-    // for(int i=0;i<3;i++){
-    //     for(int j=0;j<4;j++) cout<<a34[i][j]<<" ";cout<<"\n";
-    // }
-    // glm::vec4 v4(1.0,1.0,1.0,1.0);
-    // glm::vec3 v3=v4*a34;
-    // cout<<v3.x<<" "<<v3.y<<" "<<v3.z<<"\n";
-    for (int i = 0; i + 3 < spline.numControlPoints; i++) {
-        double controlMatrix[12] = { spline.points[i].x,spline.points[i + 1].x,spline.points[i + 2].x,spline.points[i + 3].x,
-                                     spline.points[i].y,spline.points[i + 1].y,spline.points[i + 2].y,spline.points[i + 3].y,
-                                     spline.points[i].z,spline.points[i + 1].z,spline.points[i + 2].z,spline.points[i + 3].z };
-        double mulMatrix[12];
-        MultiplyMatrices(4,4,3,catmullMatrix,controlMatrix,mulMatrix);
-        subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix, points, 0);
+void initSpline() {
+
+    mulMatrix.resize(spline.numControlPoints);
+    // Draw numControlPoints points to make the spline circular
+    for (int i = 0; i < spline.numControlPoints; i++) {
+        glm::mat3x4 controlMatrix(spline.points[(i)%spline.numControlPoints].x,spline.points[(i + 1)%spline.numControlPoints].x,spline.points[(i + 2)%spline.numControlPoints].x,spline.points[(i + 3)%spline.numControlPoints].x,
+                                  spline.points[(i)%spline.numControlPoints].y,spline.points[(i + 1)%spline.numControlPoints].y,spline.points[(i + 2)%spline.numControlPoints].y,spline.points[(i + 3)%spline.numControlPoints].y,
+                                  spline.points[(i)%spline.numControlPoints].z,spline.points[(i + 1)%spline.numControlPoints].z,spline.points[(i + 2)%spline.numControlPoints].z,spline.points[(i + 3)%spline.numControlPoints].z);
+        mulMatrix[i]=catmullMatrix*controlMatrix;
+        subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix[i], splinePoints, 0);
     }
-    numVertices = points.size() / 3; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
+
+    // To make the whole line circular, add the first point to the last.
+
+    for(int i=0;i<3;i++) splinePoints.push_back(splinePoints[i]);
+    numVertices = splinePoints.size()/3; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
+    numVerticesLine = (numVertices-1)*2;
 
     cout << "There are " << numVertices << " vertices generated.\n";
 
-    float* positions = (float*)malloc(numVertices * sizeof(unsigned int) * 3);
-    float* colors = (float*)malloc(numVertices * sizeof(unsigned int) * 4);
-    unsigned int* elements = (unsigned int*)malloc(numVertices * sizeof(unsigned int));
+    float* positions = (float*)malloc(numVerticesLine * sizeof(unsigned int) * 3);
+    float* colors = (float*)malloc(numVerticesLine * sizeof(unsigned int) * 4);
+    unsigned int* elements = (unsigned int*)malloc(numVerticesLine * sizeof(unsigned int));
 
-    for (int i = 0; i < numVertices * 3; i++) positions[i] = points[i];
-    for (int i = 0; i < numVertices * 4; i++) colors[i] = 1.0;
-    for (int i = 0; i < numVertices; i++) elements[i] = i;
+    int count=0;
+    for (int i = 0; i < numVertices-1;i++){
+        for(int j=0;j<6;j++){
+            positions[i*6+j]=splinePoints[i*3+j];
+        }
+    }
+    for (int i = 0; i < numVertices-1;i++){
+        for(int j=0;j<8;j++){
+            colors[i*8+j]=1.0;
+        }
+    }
+    for (int i = 0; i < numVerticesLine; i++){
+        elements[i] = i;
+    }
 
-    vboVertices = new VBO(numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
-    vboColors = new VBO(numVertices, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
-    vao = new VAO();
+    vboVerticesSpline = new VBO(numVerticesLine, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColorsSpline = new VBO(numVerticesLine, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
+    vaoSpline = new VAO();
 
-    vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVertices, "position");
-    vao->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColors, "color");
-    ebo = new EBO(numVertices, elements, GL_STATIC_DRAW); //Bind the EBO
+    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSpline, "position");
+    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsSpline, "color");
+    eboSpline = new EBO(numVerticesLine, elements, GL_STATIC_DRAW); //Bind the EBO
 
+    free(positions);
     free(colors);
     free(elements);
 }
@@ -686,101 +792,46 @@ void initScene(int argc, char* argv[])
     pipelineProgram->Bind();
 
     // Initialize the Catmull-Rom Spline Matrix
-    catmullMatrix[0]= -catmullS, catmullMatrix[4]= 2 - catmullS, catmullMatrix[8]= catmullS - 2, catmullMatrix[12] = catmullS;
-    catmullMatrix[1]= 2 * catmullS, catmullMatrix[5]= catmullS - 3, catmullMatrix[9]= 3 - 2 * catmullS, catmullMatrix[13] = -catmullS;
-    catmullMatrix[2]= -catmullS, catmullMatrix[6]= 0, catmullMatrix[10]= catmullS, catmullMatrix[14] = 0;
-    catmullMatrix[3] = 0, catmullMatrix[7] = 1, catmullMatrix[11] = 0, catmullMatrix[15] = 0;
+    catmullMatrix[0][0]= -catmullS, catmullMatrix[0][1]= 2 - catmullS, catmullMatrix[0][2]= catmullS - 2, catmullMatrix[0][3] = catmullS;
+    catmullMatrix[1][0]= 2 * catmullS, catmullMatrix[1][1]= catmullS - 3, catmullMatrix[1][2]= 3 - 2 * catmullS, catmullMatrix[1][3] = -catmullS;
+    catmullMatrix[2][0]= -catmullS, catmullMatrix[2][1]= 0, catmullMatrix[2][2]= catmullS, catmullMatrix[2][3] = 0;
+    catmullMatrix[3][0]= 0, catmullMatrix[3][1] = 1, catmullMatrix[3][2] = 0, catmullMatrix[3][3] = 0;
 
-    initDemo();
+    initSpline();
 
-    // Initialize variables in LookAt function
-    // eyeVec[0]=0.5,eyeVec[1]=0.5,eyeVec[2]=0.5;
-    // focusVec[0]=0.0,focusVec[1]=-0.5,focusVec[2]=-1.0;
-    // upVec[0]=0.0,upVec[1]=1.0,upVec[2]=0.0;
+    setDefaultRollerCamera(); 
 
-    // Initialize variables in LookAt function
-    eyeVec[0] = 0.0, eyeVec[1] = 2.0, eyeVec[2] = 0.5;
-    focusVec[0] = 0.0, focusVec[1] = -2.0, focusVec[2] = -0.5;
-    upVec[0] = 0.0, upVec[1] = 1.0, upVec[2] = 0.0;
-
-    // Normalize the focusVec
-    float sum = 0.0;
-    for (int i = 0; i < 3; i++) sum += focusVec[i] * focusVec[i];
-    sum = sqrt(sum);
-    for (int i = 0; i < 3; i++) focusVec[i] /= sum;
     // Check for any OpenGL errors.
     std::cout << "GL error status is: " << glGetError() << std::endl;
 }
 
-int main(int argc, char* argv[])
-{
+void setDefaultRollerCamera(){
+    // Initialize variables in LookAt function
+    eyeVec[0] = splinePoints[0], eyeVec[1] = splinePoints[1], eyeVec[2] = splinePoints[2];
+    focusVec[0] = 0.0, focusVec[1] = -2.0, focusVec[2] = -0.5;
+    upVec[0] = 0.0, upVec[1] = 1.0, upVec[2] = 0.0;
 
-    if (argc < 2)
-    {
-        printf("Usage: %s <spline file>\n", argv[0]);
-        exit(0);
+    glm::vec4 mulVec(0,0,1,0);
+    tangentVec=mulVec*mulMatrix[0];
+
+    // Calculate the binormal vector and recalculate the up vector.
+    binormalVec=glm::cross(tangentVec,upVec);
+    upVec=normalVec=glm::cross(binormalVec,tangentVec);
+
+    for(int i=0;i<3;i++){
+        eyeVec[i]+=upVec[i]*0.01;
     }
 
-    // Load spline from the provided filename.
-    loadSpline(argv[1]);
+    // Recalculate the up vector by using cross product of tangent vector and binormal vector
 
-    printf("Loaded spline with %d control point(s).\n", spline.numControlPoints);
+    // The speed is 0 at the begining
+    rollerSpeed=0.0;
 
-    cout << "Initializing GLUT..." << endl;
-    glutInit(&argc, argv);
-
-    cout << "Initializing OpenGL..." << endl;
-
-#ifdef __APPLE__
-    glutInitDisplayMode(GLUT_3_2_CORE_PROFILE | GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
-#else
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
-#endif
-
-    glutInitWindowSize(windowWidth, windowHeight);
-    glutInitWindowPosition(0, 0);
-    glutCreateWindow(windowTitle);
-
-    cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
-    cout << "OpenGL Renderer: " << glGetString(GL_RENDERER) << endl;
-    cout << "Shading Language Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
-
-#ifdef __APPLE__
-    // This is needed on recent Mac OS X versions to correctly display the window.
-    glutReshapeWindow(windowWidth - 1, windowHeight - 1);
-#endif
-
-    // Tells GLUT to use a particular display function to redraw.
-    glutDisplayFunc(displayFunc);
-    // Perform animation inside idleFunc.
-    glutIdleFunc(idleFunc);
-    // callback for mouse drags
-    glutMotionFunc(mouseMotionDragFunc);
-    // callback for idle mouse movement
-    glutPassiveMotionFunc(mouseMotionFunc);
-    // callback for mouse button changes
-    glutMouseFunc(mouseButtonFunc);
-    // callback for resizing the window
-    glutReshapeFunc(reshapeFunc);
-    // callback for pressing the keys on the keyboard
-    glutKeyboardFunc(keyboardFunc);
-
-    // init glew
-#ifdef __APPLE__
-    // nothing is needed on Apple
-#else
-    // Windows, Linux
-    GLint result = glewInit();
-    if (result != GLEW_OK)
-    {
-        cout << "error: " << glewGetErrorString(result) << endl;
-        exit(EXIT_FAILURE);
-    }
-#endif
-
-    // Perform the initialization.
-    initScene(argc, argv);
-
-    // Sink forever into the GLUT loop.
-    glutMainLoop();
+    // Normalize the focusVec
+    glm::normalize(focusVec);
+    float sum = 0.0;
+    for (int i = 0; i < 3; i++) sum += focusVec[i] * focusVec[i];
+    cout<<"sum "<<sum<<"\n";
+    sum = sqrt(sum);
+    for (int i = 0; i < 3; i++) focusVec[i] /= sum;
 }
