@@ -54,7 +54,7 @@ CONTROL_STATE controlState = ROTATE;
 glm::mat4 catmullMatrix;
 double catmullS = 0.5;
 double maxLength = 0.001; // The maximum length for drawing lines in Spline
-vector<glm::mat3x4> mulMatrix; // Mult matrix vector for every curve
+vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
 int renderType = 1;
@@ -63,16 +63,17 @@ bool enableCameraMov = false; // true when enable moving camera
 float lastTime=0.0; // last time render the window
 float rollerMinSpeed=1.0; // minimum speed when start the roller coaster
 float rollerSpeed=0.0; // speed of roller coaster (per second not per frame)
+float rollerU = 0.0; // Initial
 glm::vec3 rollerPos; // position of rollercoaster
-glm::vec3 tangentVec; // tangent vector
-glm::vec3 binormalVec; // binormal vector
-glm::vec3 normalVec; // normal vector
+glm::vec3 rollerTangent; // tangent vector
+glm::vec3 rollerBinormal; // binormal vector
+glm::vec3 rollerNormal; // normal vector
 
 float camMaxSpeed=2.0; // minimum speed when moving camera (per second not per frame)
 glm::vec2 camSpeed(0.0f,0.0f); // Speed of camera when enable moving camera
-glm::vec3 eyeVec; // camera position
-glm::vec3 focusVec; // focus vector
-glm::vec3 upVec; // up vector, also normal vector for roller coaster, when enable moving camera it is (0,1,0)
+glm::vec3 cameraEye; // camera position
+glm::vec3 cameraFocus; // focus vector
+glm::vec3 cameraUp; // up vector, also normal vector for roller coaster, when enable moving camera it is (0,1,0)
 
 // Rotate the camera
 float focusRotate[3] = { 0.0f,0.0f,0.0f };
@@ -115,6 +116,10 @@ struct Spline
     Point* points;
 } spline;
 
+int frameCount = 0;
+double lastTimeSave = 0; // last time when saving images
+double fps = 0;
+
 // Load spline
 void loadSpline(char* argv);
 
@@ -126,10 +131,6 @@ void autoSave();
 
 // Initialize the texture with texture file name and texture handle
 int initTexture(const char* imageFilename, GLuint textureHandle);
-
-int frameCount = 0;
-double lastTimeSave = 0; // last time when saving images
-double fps = 0;
 
 void idleFunc();
 
@@ -145,6 +146,8 @@ void keyboardFunc(unsigned char key, int x, int y);
 
 // Modify the focus vector and camera when enable the camera move
 void modifyFocusAndCamera();
+
+void calculateNewCameraRoller();
 
 void displayFunc();
 
@@ -372,7 +375,21 @@ void idleFunc()
     ++frameCount;
     double timeInterval = currentTime - lastTimeSave;
 
-    if (timeInterval > 1.0 / 10.0) {
+    if (timeInterval > 1.0) {
+        cout << "Current time is : " << currentTime << "\n";
+        cout << "Camera ";
+        cout << " | cameraUp     "; for (int i = 0; i < 3; i++) cout << cameraUp[i] << " "; cout << " ";
+        cout << " | FocuseVec "; for (int i = 0; i < 3; i++) cout << cameraFocus[i] << " ";
+        cout << " | cameraEye    "; for (int i = 0; i < 3; i++) cout << cameraEye[i] << " ";
+
+        cout << "\n";
+        cout << "Roller ";
+        cout << " | RollerPos "; for (int i = 0; i < 3; i++) cout << rollerPos[i] << " "; cout << " ";
+        cout << " | tangenet  "; for (int i = 0; i < 3; i++) cout << rollerTangent[i] << " ";
+        cout << " | normal    "; for (int i = 0; i < 3; i++) cout << rollerNormal[i] << " ";
+        cout << " | binormal  "; for (int i = 0; i < 3; i++) cout << rollerBinormal[i] << " ";
+
+        cout << "\n";
         //autoSave();
         lastTimeSave = currentTime;
     }
@@ -387,9 +404,7 @@ void idleFunc()
     //     for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" | Rotate ";
     //     for(int i=0;i<3;i++) cout<<terrainRotate[i]<<" ";cout<<" | Scale ";
     //     for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<" | Focus Rotate ";
-    //     for (int i = 0; i < 3; i++) cout << focusRotate[i] << " "; cout << " | FocuseVec ";
-    //     for (int i = 0; i < 3; i++) cout << focusVec[i] << " "; cout << " | EyeVec ";
-    //     for(int i=0;i<3;i++) cout<<eyeVec[i]<<" ";cout<<"\n";
+
     //    lastTime = currentTime;
     //}
 
@@ -405,7 +420,7 @@ void reshapeFunc(int w, int h)
     matrix.LoadIdentity();
     // You need to be careful about setting the zNear and zFar. 
     // Anything closer than zNear, or further than zFar, will be culled.
-    const float zNear = 0.01f;
+    const float zNear = 0.001f;
     const float zFar = 1000.0f;
     const float humanFieldOfView = 60.0f;
     matrix.Perspective(humanFieldOfView, 1.0f * w / h, zNear, zFar);
@@ -475,12 +490,11 @@ void mouseMotionFunc(int x, int y)
 {
     // the change in mouse position since the last invocation of this function
     int mousePosDelta[2] = { x - mousePos[0], y - mousePos[1] };
-
     // In case the first move of mouse will not be display so sharp.
     if (mousePos[0] == -1 && mousePos[1] == -1) {
         mousePosDelta[0] = mousePosDelta[1] = 0;
     }
-    if (!leftMouseButton && !middleMouseButton && !rightMouseButton && enableCameraMov) {
+    if (!leftMouseButton && !middleMouseButton && !rightMouseButton) {
         focusRotate[0] = mousePosDelta[1] * 0.3f;
         focusRotate[1] = mousePosDelta[0] * 0.3f;
     }
@@ -563,20 +577,15 @@ void keyboardFunc(unsigned char key, int x, int y)
         camSpeed[1] = min(camSpeed[1] + 0.5f, 1.0f);
         break;
 
-    case 'c': //Set to initial view.
-        terrainRotate[0] = terrainRotate[1] = terrainRotate[2] = 0.0;
-        terrainScale[0] = terrainScale[1] = terrainScale[2] = 1.0;
-        terrainTranslate[0] = terrainTranslate[1] = terrainTranslate[2] = 0.0;
-        break;
-
     case 'v': //Enable Moving the camera
         camSpeed[0] = camSpeed[1] = 0.0;
         if (enableCameraMov){
-            focusVec=tangentVec;
+            cameraFocus=rollerTangent;
             enableCameraMov = false;
         }
         else{
-            focusVec=glm::vec3(-1.0f,0.0f,0.0f);
+            cameraFocus=glm::vec3(-1.0f,0.0f,0.0f);
+            cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
             enableCameraMov = true;
         }
         break;
@@ -594,24 +603,50 @@ void keyboardFunc(unsigned char key, int x, int y)
     }
 }
 
-void modifyFocusAndCamera(float timeInterval,glm::vec3 upVec) {
+void modifyFocusAndCamera(float timeInterval,glm::vec3 cameraUp) {
     
     // Moving the camera
     if(enableCameraMov){
-        glm::vec3 verticalVec(-focusVec[2],0,focusVec[0]);
-        eyeVec+=1.0f*timeInterval*(camSpeed[0]*focusVec+camSpeed[1]*verticalVec);
+        glm::vec3 verticalVec(-cameraFocus[2],0,cameraFocus[0]);
+        cameraEye+=camMaxSpeed*timeInterval*(camSpeed[0]*cameraFocus+camSpeed[1]*verticalVec);
     }
-
     glm::mat4 transformMat(1.0f);
-    transformMat=transformMat*glm::rotate(glm::radians(focusRotate[0]),upVec);
-    glm::vec3 normalVec=glm::cross(upVec,focusVec);
-    transformMat=transformMat*glm::rotate(glm::radians(focusRotate[1]),normalVec);
-    // matrix.Rotate(focusRotate[0], focusVec[2], 0.0, -focusVec[0]);
-    // matrix.Rotate(focusRotate[1], 0.0, -1.0, 0.0);
+    glm::vec3 normal=glm::cross(cameraUp,cameraFocus);
+
+    transformMat=transformMat*glm::rotate(glm::radians(focusRotate[0]),normal);
+    transformMat = transformMat * glm::rotate(glm::radians(focusRotate[1]), -cameraUp);
+    focusRotate[0] = focusRotate[1] = 0.0f;
     
     // Multiply the rotate matrix with the focus vector to get the rotated vector
-    focusVec=glm::vec3(transformMat*glm::vec4(focusVec,0.0f));
+    cameraFocus=glm::vec3(transformMat*glm::vec4(cameraFocus,0.0f));
+}
+
+void calculateNewCameraRoller() {
+
+    rollerU = rollerU + 0.001 * rollerMinSpeed;
+    if (rollerU >= 1.0f*spline.numControlPoints) {
+        rollerU -= 1.0f * spline.numControlPoints;
+    }
+    int splineCount = floor(rollerU);
+    float tmpU = rollerU - 1.0f*splineCount;
+
+    rollerPos=glm::vec3(mulMatrix[splineCount]*glm::vec4(tmpU * tmpU * tmpU, tmpU * tmpU, tmpU, 1.0f));
     
+    glm::vec3 rollerTangentNew = glm::normalize(glm::vec3(mulMatrix[splineCount] * glm::vec4(3.0f * tmpU * tmpU, 2.0f * tmpU, 1.0f, 0.0f)));
+    glm::vec3 rollerNormalNew = glm::normalize(glm::cross(rollerBinormal, rollerTangentNew));
+    glm::vec3 rollerBinormalNew = glm::normalize(glm::cross(rollerTangentNew, rollerNormalNew));
+
+    if (!enableCameraMov) {
+        cameraUp = rollerNormal;
+        cameraEye = rollerPos + 0.01f * cameraUp;
+        cameraFocus = glm::dot(cameraFocus,rollerTangent)*rollerTangentNew+
+            glm::dot(cameraFocus,rollerNormal)*rollerNormalNew+
+            glm::dot(cameraFocus,rollerBinormal)*rollerBinormalNew;
+        cameraFocus=glm::normalize(cameraFocus);
+    }
+    rollerTangent = rollerTangentNew;
+    rollerNormal = rollerNormalNew;
+    rollerBinormal = rollerBinormalNew;
 }
 
 void displayFunc()
@@ -626,15 +661,15 @@ void displayFunc()
     // First, clear the screen.
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    modifyFocusAndCamera(timeInterval,upVec);
+    modifyFocusAndCamera(timeInterval,cameraUp);
 
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
     // Set up the camera position, focus point, and the up vector.
     matrix.LoadIdentity();
     // View
-    matrix.LookAt(eyeVec[0], eyeVec[1], eyeVec[2],
-                  eyeVec[0] + focusVec[0], eyeVec[1] + focusVec[1], eyeVec[2] + focusVec[2],
-                  upVec[0], upVec[1], upVec[2]);
+    matrix.LookAt(cameraEye[0], cameraEye[1], cameraEye[2],
+                  cameraEye[0] + cameraFocus[0], cameraEye[1] + cameraFocus[1], cameraEye[2] + cameraFocus[2],
+                  cameraUp[0], cameraUp[1], cameraUp[2]);
 
     // Model
     //matrix.Translate(terrainTranslate[0], terrainTranslate[1], terrainTranslate[2]);
@@ -670,32 +705,28 @@ void displayFunc()
     vaoSpline->Bind();
     glDrawElements(GL_LINES, numVerticesLine, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
 
+    // At the end, generate new u and other vector.
+    calculateNewCameraRoller();
+    
     // Swap the double-buffers.
     glutSwapBuffers();
 }
 
-void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat3x4 multMatrix, vector<float>& lineVec, unsigned char depth) {
+void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4x3 multMatrix, vector<float>& lineVec, unsigned char depth) {
     // To make sure the depth of recursion not so deep.
     if (depth >= 30) return;
 
-    glm::vec4 vu0(u0 * u0 * u0, u0 * u0, u0, 1.0f );
-    glm::vec4 vu1(u1 * u1 * u1, u1 * u1, u1, 1.0);
-    glm::vec3 x0=vu0*multMatrix;
-    glm::vec3 x1=vu1*multMatrix;
-
-    cout<<"("<<x0[0]<<","<<x0[1]<<","<<x0[2]<<") ";
-
-    cout<<"("<<vu0[0]<<","<<vu0[1]<<","<<vu0[2]<<","<<vu0[3]<<")";
-
-    for(int i=0;i<3;i++){
-        for(int j=0;j<4;j++){
-            cout<<multMatrix[i][j]<<" ";
-        }cout<<"\n";
-    }
+    glm::vec4 vu0(u0 * u0 * u0, u0 * u0, u0, 1.0f);
+    glm::vec4 vu1(u1 * u1 * u1, u1 * u1, u1, 1.0f);
+    glm::vec3 x0 = multMatrix * vu0;
+    glm::vec3 x1 = multMatrix * vu1;
 
     // Calculate the square of the different between x0 and x1
     double squareSum = glm::length2((x0-x1));
-
+    //cout << u0 << " " << u1 << " - ";
+    //cout << "(" << x0[0] << "," << x0[1] << "," << x0[2] << ") ";
+    //cout << "(" << x1[0] << "," << x1[1] << "," << x1[2] << ")  ";
+    //cout << squareSum << "\n";
     if (squareSum > maxLengthSquare) {
         double umid = (u0 + u1) / 2.0;
         subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, lineVec, depth + 1);
@@ -713,11 +744,12 @@ void initSpline() {
 
     mulMatrix.resize(spline.numControlPoints);
     // Draw numControlPoints points to make the spline circular
-    for (int i = 0; i < spline.numControlPoints; i++) {
-        glm::mat3x4 controlMatrix(spline.points[(i)%spline.numControlPoints].x,spline.points[(i + 1)%spline.numControlPoints].x,spline.points[(i + 2)%spline.numControlPoints].x,spline.points[(i + 3)%spline.numControlPoints].x,
-                                  spline.points[(i)%spline.numControlPoints].y,spline.points[(i + 1)%spline.numControlPoints].y,spline.points[(i + 2)%spline.numControlPoints].y,spline.points[(i + 3)%spline.numControlPoints].y,
-                                  spline.points[(i)%spline.numControlPoints].z,spline.points[(i + 1)%spline.numControlPoints].z,spline.points[(i + 2)%spline.numControlPoints].z,spline.points[(i + 3)%spline.numControlPoints].z);
-        mulMatrix[i]=catmullMatrix*controlMatrix;
+    for (int i = 0; i+3 < spline.numControlPoints; i++) {
+        glm::mat4x3 controlMatrix(spline.points[(i)%spline.numControlPoints].x, spline.points[(i)%spline.numControlPoints].y,spline.points[(i)%spline.numControlPoints].z,
+            spline.points[(i + 1)%spline.numControlPoints].x,spline.points[(i + 1)%spline.numControlPoints].y,spline.points[(i + 1)%spline.numControlPoints].z,
+            spline.points[(i + 2)%spline.numControlPoints].x,spline.points[(i + 2)%spline.numControlPoints].y,spline.points[(i + 2)%spline.numControlPoints].z,
+            spline.points[(i + 3)%spline.numControlPoints].x,spline.points[(i + 3)%spline.numControlPoints].y,spline.points[(i + 3)%spline.numControlPoints].z);
+        mulMatrix[i]=controlMatrix * catmullMatrix;
         subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix[i], splinePoints, 0);
     }
 
@@ -806,32 +838,33 @@ void initScene(int argc, char* argv[])
 }
 
 void setDefaultRollerCamera(){
-    // Initialize variables in LookAt function
-    eyeVec[0] = splinePoints[0], eyeVec[1] = splinePoints[1], eyeVec[2] = splinePoints[2];
-    focusVec[0] = 0.0, focusVec[1] = -2.0, focusVec[2] = -0.5;
-    upVec[0] = 0.0, upVec[1] = 1.0, upVec[2] = 0.0;
 
+    // Calculate the position of the roller coaster.
+    rollerPos[0] = splinePoints[0], rollerPos[1] = splinePoints[1], rollerPos[2] = splinePoints[2];
+
+    // Calculate the tangent and is also the focus vector of camera
     glm::vec4 mulVec(0,0,1,0);
-    tangentVec=mulVec*mulMatrix[0];
-
+    rollerTangent = mulMatrix[0] * mulVec;
+    cameraFocus = rollerTangent;
+    
+    // Set default up vector for future compute, initially it should be up.
+    cameraUp[0] = 0.0, cameraUp[1] = 1.0, cameraUp[2] = 0.0;
+    
     // Calculate the binormal vector and recalculate the up vector.
-    binormalVec=glm::cross(tangentVec,upVec);
-    upVec=normalVec=glm::cross(binormalVec,tangentVec);
+    rollerBinormal = glm::cross(rollerTangent, cameraUp);
+    rollerNormal = glm::cross(rollerBinormal, rollerTangent);
+    cameraUp = rollerNormal;
 
-    for(int i=0;i<3;i++){
-        eyeVec[i]+=upVec[i]*0.01;
-    }
-
-    // Recalculate the up vector by using cross product of tangent vector and binormal vector
+    // offset of camera
+    cameraEye = rollerPos + 0.01f * cameraUp;
 
     // The speed is 0 at the begining
     rollerSpeed=0.0;
 
-    // Normalize the focusVec
-    glm::normalize(focusVec);
-    float sum = 0.0;
-    for (int i = 0; i < 3; i++) sum += focusVec[i] * focusVec[i];
-    cout<<"sum "<<sum<<"\n";
-    sum = sqrt(sum);
-    for (int i = 0; i < 3; i++) focusVec[i] /= sum;
+    // Normalize the vectors
+    cameraUp = glm::normalize(cameraUp);
+    cameraFocus=glm::normalize(cameraFocus);
+    rollerTangent = glm::normalize(rollerTangent);
+    rollerBinormal = glm::normalize(rollerBinormal);
+    rollerNormal = glm::normalize(rollerNormal);
 }
