@@ -61,7 +61,7 @@ int renderType = 1;
 bool enableCameraMov = false; // true when enable moving camera
 
 float lastTime=0.0; // last time render the window
-float rollerMinSpeed=1.0; // minimum speed when start the roller coaster
+float rollerMinSpeed=5.0; // minimum speed when start the roller coaster
 float rollerSpeed=0.0; // speed of roller coaster (per second not per frame)
 float rollerU = 0.0; // Initial
 glm::vec3 rollerPos; // position of rollercoaster
@@ -623,7 +623,7 @@ void modifyFocusAndCamera(float timeInterval,glm::vec3 cameraUp) {
 
 void calculateNewCameraRoller() {
 
-    rollerU = rollerU + 0.001 * rollerMinSpeed;
+    rollerU = rollerU + 0.001 * rollerSpeed;
     if (rollerU >= 1.0f*spline.numControlPoints) {
         rollerU -= 1.0f * spline.numControlPoints;
     }
@@ -744,7 +744,7 @@ void initSpline() {
 
     mulMatrix.resize(spline.numControlPoints);
     // Draw numControlPoints points to make the spline circular
-    for (int i = 0; i+3 < spline.numControlPoints; i++) {
+    for (int i = 0; i < spline.numControlPoints; i++) {
         glm::mat4x3 controlMatrix(spline.points[(i)%spline.numControlPoints].x, spline.points[(i)%spline.numControlPoints].y,spline.points[(i)%spline.numControlPoints].z,
             spline.points[(i + 1)%spline.numControlPoints].x,spline.points[(i + 1)%spline.numControlPoints].y,spline.points[(i + 1)%spline.numControlPoints].z,
             spline.points[(i + 2)%spline.numControlPoints].x,spline.points[(i + 2)%spline.numControlPoints].y,spline.points[(i + 2)%spline.numControlPoints].z,
