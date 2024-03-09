@@ -92,7 +92,7 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
-PipelineProgram* pipelineProgram = nullptr;
+PipelineProgram* pipelineProgramRail = nullptr;
 
 // Spline VBOs, VAO and EBO
 int numVertices; // number of points generated
@@ -101,8 +101,11 @@ VBO* vboVerticesSpline = nullptr;
 VBO* vboColorsSpline = nullptr;
 EBO* eboSpline = nullptr;
 VAO* vaoSpline = nullptr;
-vector<float> splinePoints; // spline points
-
+vector<glm::vec3> splinePoints; // spline points
+vector<float> uVec; // vector record each u for spline points
+vector<glm::vec3> splineTangent; // Tangent of the spline
+vector<glm::vec3> splineNormal; // Tangent of Normal
+vector<glm::vec3> splineBinormal; // Tangent of 
 // Represents one spline control point.
 struct Point
 {
@@ -120,121 +123,6 @@ int frameCount = 0;
 double lastTimeSave = 0; // last time when saving images
 double fps = 0;
 
-// Load spline
-void loadSpline(char* argv);
-
-// Write a screenshot to the specified filename.
-void saveScreenshot(const char* filename);
-
-// Save screenshot in increasing number 0001,0002,0003....
-void autoSave();
-
-// Initialize the texture with texture file name and texture handle
-int initTexture(const char* imageFilename, GLuint textureHandle);
-
-void idleFunc();
-
-void reshapeFunc(int w, int h);
-
-void mouseMotionDragFunc(int x, int y);
-
-void mouseMotionFunc(int x, int y);
-
-void mouseButtonFunc(int button, int state, int x, int y);
-
-void keyboardFunc(unsigned char key, int x, int y);
-
-// Modify the focus vector and camera when enable the camera move
-void modifyFocusAndCamera();
-
-void calculateNewCameraRoller();
-
-void displayFunc();
-
-// Set the spline points with divide and conquer
-void subdivideDrawSpline(double u0, double u1, float maxLengthSquare, double* controlMatrix, vector<float>& lineVec, unsigned char depth);
-
-// Initialize the spline vertices
-void initSpline();
-
-// Set the default value of rollercoaster camera
-void setDefaultRollerCamera();
-
-void initScene(int argc, char* argv[]);
-
-int main(int argc, char* argv[])
-{
-
-    if (argc < 2)
-    {
-        printf("Usage: %s <spline file>\n", argv[0]);
-        exit(0);
-    }
-
-    // Load spline from the provided filename.
-    loadSpline(argv[1]);
-
-    printf("Loaded spline with %d control point(s).\n", spline.numControlPoints);
-
-    cout << "Initializing GLUT..." << endl;
-    glutInit(&argc, argv);
-
-    cout << "Initializing OpenGL..." << endl;
-
-#ifdef __APPLE__
-    glutInitDisplayMode(GLUT_3_2_CORE_PROFILE | GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
-#else
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
-#endif
-
-    glutInitWindowSize(windowWidth, windowHeight);
-    glutInitWindowPosition(0, 0);
-    glutCreateWindow(windowTitle);
-
-    cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
-    cout << "OpenGL Renderer: " << glGetString(GL_RENDERER) << endl;
-    cout << "Shading Language Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
-
-#ifdef __APPLE__
-    // This is needed on recent Mac OS X versions to correctly display the window.
-    glutReshapeWindow(windowWidth - 1, windowHeight - 1);
-#endif
-
-    // Tells GLUT to use a particular display function to redraw.
-    glutDisplayFunc(displayFunc);
-    // Perform animation inside idleFunc.
-    glutIdleFunc(idleFunc);
-    // callback for mouse drags
-    glutMotionFunc(mouseMotionDragFunc);
-    // callback for idle mouse movement
-    glutPassiveMotionFunc(mouseMotionFunc);
-    // callback for mouse button changes
-    glutMouseFunc(mouseButtonFunc);
-    // callback for resizing the window
-    glutReshapeFunc(reshapeFunc);
-    // callback for pressing the keys on the keyboard
-    glutKeyboardFunc(keyboardFunc);
-
-    // init glew
-#ifdef __APPLE__
-    // nothing is needed on Apple
-#else
-    // Windows, Linux
-    GLint result = glewInit();
-    if (result != GLEW_OK)
-    {
-        cout << "error: " << glewGetErrorString(result) << endl;
-        exit(EXIT_FAILURE);
-    }
-#endif
-
-    // Perform the initialization.
-    initScene(argc, argv);
-
-    // Sink forever into the GLUT loop.
-    glutMainLoop();
-}
-
 // Write a screenshot to the specified filename.
 void saveScreenshot(const char* filename)
 {
@@ -249,6 +137,7 @@ void saveScreenshot(const char* filename)
 
     delete[] screenshotData;
 }
+
 
 // Save screenshot in increasing number 0001,0002,0003....
 void autoSave() {
@@ -696,8 +585,8 @@ void displayFunc()
     // In hw1, there is only one pipeline program, but in hw2 there will be several of them.
     // In such a case, you must separately upload to *each* pipeline program.
     // Important: do not make a typo in the variable name below; otherwise, the program will malfunction.
-    pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    pipelineProgramRail->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    pipelineProgramRail->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
 
     // Execute the rendering.
     // Bind the VAO that we want to render. Remember, one object = one VAO. 
@@ -712,7 +601,7 @@ void displayFunc()
     glutSwapBuffers();
 }
 
-void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4x3 multMatrix, vector<float>& lineVec, unsigned char depth) {
+void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4x3 multMatrix, unsigned char depth, float index) {
     // To make sure the depth of recursion not so deep.
     if (depth >= 30) return;
 
@@ -729,19 +618,20 @@ void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4
     //cout << squareSum << "\n";
     if (squareSum > maxLengthSquare) {
         double umid = (u0 + u1) / 2.0;
-        subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, lineVec, depth + 1);
-        subdivideDrawSpline(umid, u1, maxLengthSquare, multMatrix, lineVec, depth + 1);
+        subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, depth + 1, index);
+        subdivideDrawSpline(umid, u1, maxLengthSquare, multMatrix, depth + 1, index);
     }
     else {
         // only save the left point of a line
         for (int i = 0; i < 3; i++) {
-            lineVec.push_back(x0[i]);
+            splinePoints.push_back(x0);
         }
+        uVec.push_back(index+u0);
     }
 }
 
-void initSpline() {
-
+void initRail() {
+    // Create the spline points
     mulMatrix.resize(spline.numControlPoints);
     // Draw numControlPoints points to make the spline circular
     for (int i = 0; i < spline.numControlPoints; i++) {
@@ -750,16 +640,18 @@ void initSpline() {
             spline.points[(i + 2)%spline.numControlPoints].x,spline.points[(i + 2)%spline.numControlPoints].y,spline.points[(i + 2)%spline.numControlPoints].z,
             spline.points[(i + 3)%spline.numControlPoints].x,spline.points[(i + 3)%spline.numControlPoints].y,spline.points[(i + 3)%spline.numControlPoints].z);
         mulMatrix[i]=controlMatrix * catmullMatrix;
-        subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix[i], splinePoints, 0);
+        subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix[i], 0, 1.0f*i);
     }
 
     // To make the whole line circular, add the first point to the last.
-
-    for(int i=0;i<3;i++) splinePoints.push_back(splinePoints[i]);
-    numVertices = splinePoints.size()/3; // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
+    uVec.push_back(1.0f*spline.numControlPoints);
+    splinePoints.push_back(splinePoints[0]);
+    numVertices = splinePoints.size(); // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
     numVerticesLine = (numVertices-1)*2;
 
     cout << "There are " << numVertices << " vertices generated.\n";
+
+    // Find the 
 
     float* positions = (float*)malloc(numVerticesLine * sizeof(unsigned int) * 3);
     float* colors = (float*)malloc(numVerticesLine * sizeof(unsigned int) * 4);
@@ -768,7 +660,7 @@ void initSpline() {
     int count=0;
     for (int i = 0; i < numVertices-1;i++){
         for(int j=0;j<6;j++){
-            positions[i*6+j]=splinePoints[i*3+j];
+            positions[i*6+j]=splinePoints[i][j];
         }
     }
     for (int i = 0; i < numVertices-1;i++){
@@ -784,8 +676,8 @@ void initSpline() {
     vboColorsSpline = new VBO(numVerticesLine, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
     vaoSpline = new VAO();
 
-    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboVerticesSpline, "position");
-    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgram, vboColorsSpline, "color");
+    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesSpline, "position");
+    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboColorsSpline, "color");
     eboSpline = new EBO(numVerticesLine, elements, GL_STATIC_DRAW); //Bind the EBO
 
     free(positions);
@@ -793,54 +685,10 @@ void initSpline() {
     free(elements);
 }
 
-void initScene(int argc, char* argv[])
-{
-
-    // Set the background color.
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black color.
-
-    // Enable z-buffering (i.e., hidden surface removal using the z-buffer algorithm).
-    glEnable(GL_DEPTH_TEST);
-    // Create a pipeline program. This operation must be performed BEFORE we initialize any VAOs.
-    // A pipeline program contains our shaders. Different pipeline programs may contain different shaders.
-    // In this homework, we only have one set of shaders, and therefore, there is only one pipeline program.
-    // In hw2, we will need to shade different objects with different shaders, and therefore, we will have
-    // several pipeline programs (e.g., one for the rails, one for the ground/sky, etc.).
-    pipelineProgram = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
-    // Load and set up the pipeline program, including its shaders.
-    if (pipelineProgram->BuildShadersFromFiles(shaderBasePath, "vertexShader.glsl", "fragmentShader.glsl") != 0)
-    {
-        cout << "Failed to build the pipeline program." << endl;
-        throw 1;
-    }
-    cout << "Successfully built the pipeline program." << endl;
-
-    // Bind the pipeline program that we just created. 
-    // The purpose of binding a pipeline program is to activate the shaders that it contains, i.e.,
-    // any object rendered from that point on, will use those shaders.
-    // When the application starts, no pipeline program is bound, which means that rendering is not set up.
-    // So, at some point (such as below), we need to bind a pipeline program.
-    // From that point on, exactly one pipeline program is bound at any moment of time.
-    pipelineProgram->Bind();
-
-    // Initialize the Catmull-Rom Spline Matrix
-    catmullMatrix[0][0]= -catmullS, catmullMatrix[0][1]= 2 - catmullS, catmullMatrix[0][2]= catmullS - 2, catmullMatrix[0][3] = catmullS;
-    catmullMatrix[1][0]= 2 * catmullS, catmullMatrix[1][1]= catmullS - 3, catmullMatrix[1][2]= 3 - 2 * catmullS, catmullMatrix[1][3] = -catmullS;
-    catmullMatrix[2][0]= -catmullS, catmullMatrix[2][1]= 0, catmullMatrix[2][2]= catmullS, catmullMatrix[2][3] = 0;
-    catmullMatrix[3][0]= 0, catmullMatrix[3][1] = 1, catmullMatrix[3][2] = 0, catmullMatrix[3][3] = 0;
-
-    initSpline();
-
-    setDefaultRollerCamera(); 
-
-    // Check for any OpenGL errors.
-    std::cout << "GL error status is: " << glGetError() << std::endl;
-}
-
 void setDefaultRollerCamera(){
 
     // Calculate the position of the roller coaster.
-    rollerPos[0] = splinePoints[0], rollerPos[1] = splinePoints[1], rollerPos[2] = splinePoints[2];
+    rollerPos = splinePoints[0];
 
     // Calculate the tangent and is also the focus vector of camera
     glm::vec4 mulVec(0,0,1,0);
@@ -867,4 +715,121 @@ void setDefaultRollerCamera(){
     rollerTangent = glm::normalize(rollerTangent);
     rollerBinormal = glm::normalize(rollerBinormal);
     rollerNormal = glm::normalize(rollerNormal);
+}
+
+void initScene(int argc, char* argv[])
+{
+
+    // Set the background color.
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black color.
+
+    // Enable z-buffering (i.e., hidden surface removal using the z-buffer algorithm).
+    glEnable(GL_DEPTH_TEST);
+    // Create a pipeline program. This operation must be performed BEFORE we initialize any VAOs.
+    // A pipeline program contains our shaders. Different pipeline programs may contain different shaders.
+    // In this homework, we only have one set of shaders, and therefore, there is only one pipeline program.
+    // In hw2, we will need to shade different objects with different shaders, and therefore, we will have
+    // several pipeline programs (e.g., one for the rails, one for the ground/sky, etc.).
+    pipelineProgramRail= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0)
+    {
+        cout << "Failed to build the pipeline program." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program." << endl;
+
+    // Bind the pipeline program that we just created. 
+    // The purpose of binding a pipeline program is to activate the shaders that it contains, i.e.,
+    // any object rendered from that point on, will use those shaders.
+    // When the application starts, no pipeline program is bound, which means that rendering is not set up.
+    // So, at some point (such as below), we need to bind a pipeline program.
+    // From that point on, exactly one pipeline program is bound at any moment of time.
+    pipelineProgramRail->Bind();
+
+    // Initialize the Catmull-Rom Spline Matrix
+    catmullMatrix[0][0]= -catmullS, catmullMatrix[0][1]= 2 - catmullS, catmullMatrix[0][2]= catmullS - 2, catmullMatrix[0][3] = catmullS;
+    catmullMatrix[1][0]= 2 * catmullS, catmullMatrix[1][1]= catmullS - 3, catmullMatrix[1][2]= 3 - 2 * catmullS, catmullMatrix[1][3] = -catmullS;
+    catmullMatrix[2][0]= -catmullS, catmullMatrix[2][1]= 0, catmullMatrix[2][2]= catmullS, catmullMatrix[2][3] = 0;
+    catmullMatrix[3][0]= 0, catmullMatrix[3][1] = 1, catmullMatrix[3][2] = 0, catmullMatrix[3][3] = 0;
+
+    initRail();
+
+    setDefaultRollerCamera(); 
+
+    // Check for any OpenGL errors.
+    std::cout << "GL error status is: " << glGetError() << std::endl;
+}
+
+int main(int argc, char* argv[])
+{
+
+    if (argc < 2)
+    {
+        printf("Usage: %s <spline file>\n", argv[0]);
+        exit(0);
+    }
+
+    // Load spline from the provided filename.
+    loadSpline(argv[1]);
+
+    printf("Loaded spline with %d control point(s).\n", spline.numControlPoints);
+
+    cout << "Initializing GLUT..." << endl;
+    glutInit(&argc, argv);
+
+    cout << "Initializing OpenGL..." << endl;
+
+#ifdef __APPLE__
+    glutInitDisplayMode(GLUT_3_2_CORE_PROFILE | GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
+#else
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH | GLUT_STENCIL);
+#endif
+
+    glutInitWindowSize(windowWidth, windowHeight);
+    glutInitWindowPosition(0, 0);
+    glutCreateWindow(windowTitle);
+
+    cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
+    cout << "OpenGL Renderer: " << glGetString(GL_RENDERER) << endl;
+    cout << "Shading Language Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
+
+#ifdef __APPLE__
+    // This is needed on recent Mac OS X versions to correctly display the window.
+    glutReshapeWindow(windowWidth - 1, windowHeight - 1);
+#endif
+
+    // Tells GLUT to use a particular display function to redraw.
+    glutDisplayFunc(displayFunc);
+    // Perform animation inside idleFunc.
+    glutIdleFunc(idleFunc);
+    // callback for mouse drags
+    glutMotionFunc(mouseMotionDragFunc);
+    // callback for idle mouse movement
+    glutPassiveMotionFunc(mouseMotionFunc);
+    // callback for mouse button changes
+    glutMouseFunc(mouseButtonFunc);
+    // callback for resizing the window
+    glutReshapeFunc(reshapeFunc);
+    // callback for pressing the keys on the keyboard
+    glutKeyboardFunc(keyboardFunc);
+
+    // init glew
+#ifdef __APPLE__
+    // nothing is needed on Apple
+#else
+    // Windows, Linux
+    GLint result = glewInit();
+    if (result != GLEW_OK)
+    {
+        cout << "error: " << glewGetErrorString(result) << endl;
+        exit(EXIT_FAILURE);
+    }
+#endif
+
+    // Perform the initialization.
+    initScene(argc, argv);
+
+    // Sink forever into the GLUT loop.
+    glutMainLoop();
 }
