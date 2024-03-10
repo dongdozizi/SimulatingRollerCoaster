@@ -94,15 +94,19 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 OpenGLMatrix matrix;
 PipelineProgram* pipelineProgramRail = nullptr;
 
+int numVerticesRail; // number of vertices in rail
+int numVerticesRailE; // number of elements in the rendering rail
+VBO* vboVerticesRail = nullptr;
+VBO* vboColorsRail = nullptr;
+VBO* vboNormalRail = nullptr;
+EBO* eboRail = nullptr;
+VAO* vaoRail = nullptr;
+
 // Spline VBOs, VAO and EBO
-int numVertices; // number of points generated
-int numVerticesLine; // number of vertices in line
-VBO* vboVerticesSpline = nullptr;
-VBO* vboColorsSpline = nullptr;
-EBO* eboSpline = nullptr;
-VAO* vaoSpline = nullptr;
+int numVerticesSpline; // number of points generated
 vector<glm::vec3> splinePoints; // spline points
 vector<float> uVec; // vector record each u for spline points
+vector<int> uPosVec; // record the start position of each spline.
 vector<glm::vec3> splineTangent; // Tangent of the spline
 vector<glm::vec3> splineNormal; // Tangent of Normal
 vector<glm::vec3> splineBinormal; // Tangent of 
@@ -141,7 +145,7 @@ void saveScreenshot(const char* filename)
 
 // Save screenshot in increasing number 0001,0002,0003....
 void autoSave() {
-    if (screenShotCounter <= 299) {
+    if (screenShotCounter <= 399) {
         char filename[40];
         sprintf(filename, "../Examples/Heightmap-%04d.jpg", ++screenShotCounter);
         saveScreenshot(filename);
@@ -263,8 +267,7 @@ void idleFunc()
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
     ++frameCount;
     double timeInterval = currentTime - lastTimeSave;
-
-    if (timeInterval > 1.0) {
+    if (timeInterval > 0.0001) {
         cout << "Current time is : " << currentTime << "\n";
         cout << "Camera ";
         cout << " | cameraUp     "; for (int i = 0; i < 3; i++) cout << cameraUp[i] << " "; cout << " ";
@@ -278,6 +281,8 @@ void idleFunc()
         cout << " | normal    "; for (int i = 0; i < 3; i++) cout << rollerNormal[i] << " ";
         cout << " | binormal  "; for (int i = 0; i < 3; i++) cout << rollerBinormal[i] << " ";
 
+        cout << "\n";
+        cout << " u | currentU " << rollerU << "\n";
         cout << "\n";
         //autoSave();
         lastTimeSave = currentTime;
@@ -519,23 +524,52 @@ void calculateNewCameraRoller() {
     int splineCount = floor(rollerU);
     float tmpU = rollerU - 1.0f*splineCount;
 
-    rollerPos=glm::vec3(mulMatrix[splineCount]*glm::vec4(tmpU * tmpU * tmpU, tmpU * tmpU, tmpU, 1.0f));
-    
-    glm::vec3 rollerTangentNew = glm::normalize(glm::vec3(mulMatrix[splineCount] * glm::vec4(3.0f * tmpU * tmpU, 2.0f * tmpU, 1.0f, 0.0f)));
-    glm::vec3 rollerNormalNew = glm::normalize(glm::cross(rollerBinormal, rollerTangentNew));
-    glm::vec3 rollerBinormalNew = glm::normalize(glm::cross(rollerTangentNew, rollerNormalNew));
+    // Use binary search to find the next u position
+    int l = uPosVec[splineCount], r = uPosVec[splineCount + 1];
+    int uPos = lower_bound(uVec.begin() + l, uVec.begin() + r, tmpU) - uVec.begin();
+
+    // Interpolate the position
+    glm::vec3 rollerPosNew;
+    if (uPos == r) {
+        rollerPosNew = (splinePoints[uPos] * (tmpU - uVec[uPos]) + splinePoints[uPos + 1] * (1.0f - tmpU)) / (1.0f - uVec[uPos]);
+    }
+    else {
+        rollerPosNew = (splinePoints[uPos] * (tmpU - uVec[uPos]) + splinePoints[uPos + 1] * (uVec[uPos + 1] - tmpU)) / (uVec[uPos + 1] - uVec[uPos]);
+    }
+
+    glm::vec3 rollerTangentNew = splineTangent[uPos];
+    glm::vec3 rollerNormalNew = splineNormal[uPos];
+    glm::vec3 rollerBinormalNew = splineBinormal[uPos];
 
     if (!enableCameraMov) {
-        cameraUp = rollerNormal;
-        cameraEye = rollerPos + 0.01f * cameraUp;
+        cameraUp = rollerNormalNew;
+        cameraEye = rollerPosNew + 0.01f * cameraUp;
         cameraFocus = glm::dot(cameraFocus,rollerTangent)*rollerTangentNew+
             glm::dot(cameraFocus,rollerNormal)*rollerNormalNew+
             glm::dot(cameraFocus,rollerBinormal)*rollerBinormalNew;
         cameraFocus=glm::normalize(cameraFocus);
     }
+    rollerPos = rollerPosNew;
     rollerTangent = rollerTangentNew;
     rollerNormal = rollerNormalNew;
     rollerBinormal = rollerBinormalNew;
+}
+
+void drawRail(float modelViewMatrix[],float projectionMatrix[]) {
+    pipelineProgramRail->Bind();
+    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
+    // Important: these matrices must be uploaded to *all* pipeline programs used.
+    // In hw1, there is only one pipeline program, but in hw2 there will be several of them.
+    // In such a case, you must separately upload to *each* pipeline program.
+    // Important: do not make a typo in the variable name below; otherwise, the program will malfunction.
+    pipelineProgramRail->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    pipelineProgramRail->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+
+    // Execute the rendering.
+    // Bind the VAO that we want to render. Remember, one object = one VAO. 
+
+    vaoRail->Bind();
+    glDrawElements(GL_LINES, numVerticesRailE, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
 }
 
 void displayFunc()
@@ -580,19 +614,7 @@ void displayFunc()
     matrix.SetMatrixMode(OpenGLMatrix::Projection);
     matrix.GetMatrix(projectionMatrix);
 
-    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
-    // Important: these matrices must be uploaded to *all* pipeline programs used.
-    // In hw1, there is only one pipeline program, but in hw2 there will be several of them.
-    // In such a case, you must separately upload to *each* pipeline program.
-    // Important: do not make a typo in the variable name below; otherwise, the program will malfunction.
-    pipelineProgramRail->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    pipelineProgramRail->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
-
-    // Execute the rendering.
-    // Bind the VAO that we want to render. Remember, one object = one VAO. 
-
-    vaoSpline->Bind();
-    glDrawElements(GL_LINES, numVerticesLine, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
+    drawRail(modelViewMatrix, projectionMatrix);
 
     // At the end, generate new u and other vector.
     calculateNewCameraRoller();
@@ -601,7 +623,7 @@ void displayFunc()
     glutSwapBuffers();
 }
 
-void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4x3 multMatrix, unsigned char depth, float index) {
+void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4x3 multMatrix, unsigned char depth) {
     // To make sure the depth of recursion not so deep.
     if (depth >= 30) return;
 
@@ -612,114 +634,116 @@ void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4
 
     // Calculate the square of the different between x0 and x1
     double squareSum = glm::length2((x0-x1));
-    //cout << u0 << " " << u1 << " - ";
-    //cout << "(" << x0[0] << "," << x0[1] << "," << x0[2] << ") ";
-    //cout << "(" << x1[0] << "," << x1[1] << "," << x1[2] << ")  ";
-    //cout << squareSum << "\n";
     if (squareSum > maxLengthSquare) {
         double umid = (u0 + u1) / 2.0;
-        subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, depth + 1, index);
-        subdivideDrawSpline(umid, u1, maxLengthSquare, multMatrix, depth + 1, index);
+        subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, depth + 1);
+        subdivideDrawSpline(umid, u1, maxLengthSquare, multMatrix, depth + 1);
     }
     else {
         // only save the left point of a line
-        for (int i = 0; i < 3; i++) {
-            splinePoints.push_back(x0);
-        }
-        uVec.push_back(index+u0);
+        splinePoints.push_back(x0);
+        uVec.push_back(u0);
     }
 }
 
-void initRail() {
+void initSpline() {
     // Create the spline points
     mulMatrix.resize(spline.numControlPoints);
     // Draw numControlPoints points to make the spline circular
     for (int i = 0; i < spline.numControlPoints; i++) {
-        glm::mat4x3 controlMatrix(spline.points[(i)%spline.numControlPoints].x, spline.points[(i)%spline.numControlPoints].y,spline.points[(i)%spline.numControlPoints].z,
-            spline.points[(i + 1)%spline.numControlPoints].x,spline.points[(i + 1)%spline.numControlPoints].y,spline.points[(i + 1)%spline.numControlPoints].z,
-            spline.points[(i + 2)%spline.numControlPoints].x,spline.points[(i + 2)%spline.numControlPoints].y,spline.points[(i + 2)%spline.numControlPoints].z,
-            spline.points[(i + 3)%spline.numControlPoints].x,spline.points[(i + 3)%spline.numControlPoints].y,spline.points[(i + 3)%spline.numControlPoints].z);
-        mulMatrix[i]=controlMatrix * catmullMatrix;
-        subdivideDrawSpline(0.0, 1.0, maxLength*maxLength, mulMatrix[i], 0, 1.0f*i);
+        glm::mat4x3 controlMatrix;
+        for (int j = 0; j < 4; j++) {
+            controlMatrix[j][0] = spline.points[(i + j) % spline.numControlPoints].x;
+            controlMatrix[j][1] = spline.points[(i + j) % spline.numControlPoints].y;
+            controlMatrix[j][2] = spline.points[(i + j) % spline.numControlPoints].z;
+        }
+        mulMatrix[i] = controlMatrix * catmullMatrix;
+        uPosVec.push_back(splinePoints.size()); // add the current size of spline point.
+        subdivideDrawSpline(0.0, 1.0, maxLength * maxLength, mulMatrix[i], 0);
     }
-
+    
     // To make the whole line circular, add the first point to the last.
-    uVec.push_back(1.0f*spline.numControlPoints);
+    mulMatrix.push_back(mulMatrix[0]);
+    uPosVec.push_back(splinePoints.size());
+    uVec.push_back(0.0f);
     splinePoints.push_back(splinePoints[0]);
-    numVertices = splinePoints.size(); // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
-    numVerticesLine = (numVertices-1)*2;
+    numVerticesSpline = splinePoints.size(); // This must be a global variable, so that we know how many vertices to render in glDrawArrays.
 
-    cout << "There are " << numVertices << " vertices generated.\n";
+    cout << "There are " << numVerticesSpline << " vertices generated.\n";
+    // Calculate initial tangent, normal, binormal.
+    splineTangent.resize(splinePoints.size());
+    splineBinormal.resize(splinePoints.size());
+    splineNormal.resize(splinePoints.size());
 
-    // Find the 
+    splineTangent[0] = glm::normalize(glm::vec3(mulMatrix[0] * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+    splineBinormal[0] = glm::normalize(glm::cross(splineTangent[0], glm::vec3(0.0f, 1.0f, 0.0f))); // Initially looking up
+    splineNormal[0] = glm::normalize(glm::cross(splineBinormal[0], splineTangent[0]));
 
-    float* positions = (float*)malloc(numVerticesLine * sizeof(unsigned int) * 3);
-    float* colors = (float*)malloc(numVerticesLine * sizeof(unsigned int) * 4);
-    unsigned int* elements = (unsigned int*)malloc(numVerticesLine * sizeof(unsigned int));
+    // Calculate the following tangent, normal, binormal by camera movement
+    for (int i = 1,splineCount=0; i < splinePoints.size(); i++) {
+        if (uVec[i] == 0.0f) {
+            splineCount++;
+        }
+        splineTangent[i] = glm::normalize(glm::vec3(mulMatrix[splineCount] * glm::vec4(3.0f * uVec[i] * uVec[i], 2.0f * uVec[i], 1.0f, 0.0f)));
+        splineNormal[i] = glm::normalize(glm::cross(splineBinormal[i - 1], splineTangent[i]));
+        splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], splineNormal[i]));
+    }
+}
+
+void initRail() {
+    numVerticesRail = (numVerticesSpline-1) * 4;
+    numVerticesRailE = (numVerticesSpline - 1) * 24;
+    float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    float* colors = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 4);
+    unsigned int* elements = (unsigned int*)malloc(numVerticesRailE * sizeof(unsigned int));
 
     int count=0;
-    for (int i = 0; i < numVertices-1;i++){
-        for(int j=0;j<6;j++){
-            positions[i*6+j]=splinePoints[i][j];
+    for (int i = 0; i < numVerticesSpline-1;i++){
+        for(int j=0;j<3;j++){
+            positions[i * 6 + j] = splinePoints[i][j];
+        }
+        for (int j = 0; j < 3; j++) {
+            positions[i * 6 + j + 3] = splinePoints[i + 1][j];
         }
     }
-    for (int i = 0; i < numVertices-1;i++){
+    for (int i = 0; i < numVerticesSpline-1;i++){
         for(int j=0;j<8;j++){
             colors[i*8+j]=1.0;
         }
     }
-    for (int i = 0; i < numVerticesLine; i++){
+    for (int i = 0; i < numVerticesRail; i++){
         elements[i] = i;
     }
 
-    vboVerticesSpline = new VBO(numVerticesLine, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
-    vboColorsSpline = new VBO(numVerticesLine, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
-    vaoSpline = new VAO();
+    vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboColorsRail = new VBO(numVerticesRail, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
+    vaoRail = new VAO();
 
-    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesSpline, "position");
-    vaoSpline->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboColorsSpline, "color");
-    eboSpline = new EBO(numVerticesLine, elements, GL_STATIC_DRAW); //Bind the EBO
+    pipelineProgramRail->Bind(); // Bind the rail pipeline program
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesRail, "position");
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboColorsRail, "color");
+    eboRail = new EBO(numVerticesRailE, elements, GL_STATIC_DRAW); //Bind the EBO
 
     free(positions);
     free(colors);
     free(elements);
 }
 
+// Initialize the roller coaster status and camera status
 void setDefaultRollerCamera(){
-
-    // Calculate the position of the roller coaster.
     rollerPos = splinePoints[0];
-
-    // Calculate the tangent and is also the focus vector of camera
-    glm::vec4 mulVec(0,0,1,0);
-    rollerTangent = mulMatrix[0] * mulVec;
-    cameraFocus = rollerTangent;
-    
-    // Set default up vector for future compute, initially it should be up.
-    cameraUp[0] = 0.0, cameraUp[1] = 1.0, cameraUp[2] = 0.0;
-    
-    // Calculate the binormal vector and recalculate the up vector.
-    rollerBinormal = glm::cross(rollerTangent, cameraUp);
-    rollerNormal = glm::cross(rollerBinormal, rollerTangent);
-    cameraUp = rollerNormal;
+    rollerTangent = cameraFocus = splineTangent[0];
+    rollerNormal = cameraUp = splineNormal[0];
 
     // offset of camera
-    cameraEye = rollerPos + 0.01f * cameraUp;
+    cameraEye = rollerPos + 0.05f * cameraUp;
 
     // The speed is 0 at the begining
     rollerSpeed=0.0;
-
-    // Normalize the vectors
-    cameraUp = glm::normalize(cameraUp);
-    cameraFocus=glm::normalize(cameraFocus);
-    rollerTangent = glm::normalize(rollerTangent);
-    rollerBinormal = glm::normalize(rollerBinormal);
-    rollerNormal = glm::normalize(rollerNormal);
 }
 
 void initScene(int argc, char* argv[])
 {
-
     // Set the background color.
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f); // Black color.
 
@@ -739,22 +763,14 @@ void initScene(int argc, char* argv[])
     }
     cout << "Successfully built the pipeline program." << endl;
 
-    // Bind the pipeline program that we just created. 
-    // The purpose of binding a pipeline program is to activate the shaders that it contains, i.e.,
-    // any object rendered from that point on, will use those shaders.
-    // When the application starts, no pipeline program is bound, which means that rendering is not set up.
-    // So, at some point (such as below), we need to bind a pipeline program.
-    // From that point on, exactly one pipeline program is bound at any moment of time.
-    pipelineProgramRail->Bind();
-
     // Initialize the Catmull-Rom Spline Matrix
-    catmullMatrix[0][0]= -catmullS, catmullMatrix[0][1]= 2 - catmullS, catmullMatrix[0][2]= catmullS - 2, catmullMatrix[0][3] = catmullS;
-    catmullMatrix[1][0]= 2 * catmullS, catmullMatrix[1][1]= catmullS - 3, catmullMatrix[1][2]= 3 - 2 * catmullS, catmullMatrix[1][3] = -catmullS;
-    catmullMatrix[2][0]= -catmullS, catmullMatrix[2][1]= 0, catmullMatrix[2][2]= catmullS, catmullMatrix[2][3] = 0;
-    catmullMatrix[3][0]= 0, catmullMatrix[3][1] = 1, catmullMatrix[3][2] = 0, catmullMatrix[3][3] = 0;
+    catmullMatrix = glm::mat4(-catmullS, 2 - catmullS, catmullS - 2, catmullS,
+        2 * catmullS, catmullS - 3, 3 - 2 * catmullS, -catmullS,
+        -catmullS, 0, catmullS, 0,
+        0, 1, 0, 0);
 
+    initSpline();
     initRail();
-
     setDefaultRollerCamera(); 
 
     // Check for any OpenGL errors.
