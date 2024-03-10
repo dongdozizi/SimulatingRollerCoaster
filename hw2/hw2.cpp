@@ -24,6 +24,7 @@
 #include <glm/gtx/norm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp>
+#include <glm/gtx/vector_angle.hpp>
 
 #if defined(WIN32) || defined(_WIN32)
 #ifdef _DEBUG
@@ -96,6 +97,8 @@ PipelineProgram* pipelineProgramRail = nullptr;
 
 int numVerticesRail; // number of vertices in rail
 int numVerticesRailE; // number of elements in the rendering rail
+float railHeight=0.01;
+float railWidth=0.1;
 VBO* vboVerticesRail = nullptr;
 VBO* vboColorsRail = nullptr;
 VBO* vboNormalRail = nullptr;
@@ -267,7 +270,7 @@ void idleFunc()
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
     ++frameCount;
     double timeInterval = currentTime - lastTimeSave;
-    if (timeInterval > 0.0001) {
+    if (timeInterval > 0.001) {
         cout << "Current time is : " << currentTime << "\n";
         cout << "Camera ";
         cout << " | cameraUp     "; for (int i = 0; i < 3; i++) cout << cameraUp[i] << " "; cout << " ";
@@ -282,7 +285,7 @@ void idleFunc()
         cout << " | binormal  "; for (int i = 0; i < 3; i++) cout << rollerBinormal[i] << " ";
 
         cout << "\n";
-        cout << " u | currentU " << rollerU << "\n";
+        cout << " u | currentU " << rollerU;
         cout << "\n";
         //autoSave();
         lastTimeSave = currentTime;
@@ -543,7 +546,7 @@ void calculateNewCameraRoller() {
 
     if (!enableCameraMov) {
         cameraUp = rollerNormalNew;
-        cameraEye = rollerPosNew + 0.01f * cameraUp;
+        cameraEye = rollerPosNew + 0.1f * cameraUp;
         cameraFocus = glm::dot(cameraFocus,rollerTangent)*rollerTangentNew+
             glm::dot(cameraFocus,rollerNormal)*rollerNormalNew+
             glm::dot(cameraFocus,rollerBinormal)*rollerBinormalNew;
@@ -569,7 +572,7 @@ void drawRail(float modelViewMatrix[],float projectionMatrix[]) {
     // Bind the VAO that we want to render. Remember, one object = one VAO. 
 
     vaoRail->Bind();
-    glDrawElements(GL_LINES, numVerticesRailE, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
+    glDrawElements(GL_TRIANGLES, numVerticesRailE, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
 }
 
 void displayFunc()
@@ -691,37 +694,100 @@ void initSpline() {
 }
 
 void initRail() {
-    numVerticesRail = (numVerticesSpline-1) * 4;
+    numVerticesRail = numVerticesSpline * 4;
     numVerticesRailE = (numVerticesSpline - 1) * 24;
     float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
     float* colors = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 4);
+    float* normals = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
     unsigned int* elements = (unsigned int*)malloc(numVerticesRailE * sizeof(unsigned int));
 
-    int count=0;
-    for (int i = 0; i < numVerticesSpline-1;i++){
+    int pos = 0;
+    for (int i = 0; i < numVerticesSpline;i++){
+        glm::vec3 cur = splinePoints[i] + 0.5f * railWidth * splineBinormal[i] + 0.5f * railHeight * splineNormal[i];
         for(int j=0;j<3;j++){
-            positions[i * 6 + j] = splinePoints[i][j];
+            positions[pos++] = cur[j];
         }
+        cur = splinePoints[i] - 0.5f * railWidth * splineBinormal[i] + 0.5f * railHeight * splineNormal[i];
         for (int j = 0; j < 3; j++) {
-            positions[i * 6 + j + 3] = splinePoints[i + 1][j];
+            positions[pos++] = cur[j];
+        }
+        cur = splinePoints[i] - 0.5f * railWidth * splineBinormal[i] - 0.5f * railHeight * splineNormal[i];
+        for (int j = 0; j < 3; j++) {
+            positions[pos++] = cur[j];
+        }
+        cur = splinePoints[i] + 0.5f * railWidth * splineBinormal[i] - 0.5f * railHeight * splineNormal[i];
+        for (int j = 0; j < 3; j++) {
+            positions[pos++] = cur[j];
         }
     }
-    for (int i = 0; i < numVerticesSpline-1;i++){
-        for(int j=0;j<8;j++){
-            colors[i*8+j]=1.0;
+    pos = 0;
+    for (int i = 0; i < numVerticesSpline;i++){
+        for(int j=0;j<16;j++){
+            colors[i*16+j]=1.0;
         }
     }
-    for (int i = 0; i < numVerticesRail; i++){
-        elements[i] = i;
+    int dxy[8][3] = { {0,4,5}, {0,1,5},
+        {1,5,6},{1,2,6},
+        {2,6,7},{2,3,7},
+        {3,7,4},{3,0,4} };
+
+    // Calculate pseudoNormal
+    for (int i = 0; i < numVerticesSpline - 1; i++) {
+        for (int j = 0; j < 8; j++) {
+            for (int k = 0; k < 3; k++) {
+                glm::vec3 vP[3];
+                for (int t1 = 0; t1 < 3; t1++) {
+                    for (int t2 = 0; t2 < 3; t2++) {
+                        vP[t1][t2] = positions[(i * 4 + dxy[j][(k + t1) % 3]) * 3 + t2];
+                    }
+                }
+                glm::vec3 vl = vP[0] - vP[1];
+                glm::vec3 vr = vP[2] - vP[1];
+                glm::vec3 partsum = glm::angle(vl, vr) * glm::cross(vr, vl);
+                for (int p = 0, st = i * 4 + dxy[j][(k + 1) % 3]; p < 3; p++) {
+                    normals[st * 3 + p] += partsum[p];
+                }
+            }
+        }
     }
+    // Didn't fully calculate the first and last, so add it on.
+    for (int i = 0; i < 4; i++) {
+        for (int j = 0; j < 3; j++) {
+            normals[i * 3 + j] += normals[(numVerticesSpline - 1) * 4 * 3 + i * 3 + j];
+            normals[(numVerticesSpline - 1) * 4 * 3 + i * 3 + j] = normals[i * 3 + j];
+        }
+    }
+    for (int i = 0; i < numVerticesRail; i++) {
+        float sum = 0;
+        for (int j = 0; j < 3; j++) {
+            sum += normals[i * 3 + j] * normals[i * 3 + j];
+        }
+        sum = sqrt(sum);
+        for (int j = 0; j < 3; j++) {
+            normals[i * 3 + j] /= sum;
+        }
+    }
+
+    // Get the element array
+    pos = 0;
+    for (int i = 0; i < numVerticesSpline-1; i++){
+        for (int j = 0; j < 8; j++) {
+            for (int k = 0; k < 3; k++) {
+                elements[pos++] = i * 4 + dxy[j][k];
+            }
+        }
+    }
+
 
     vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
     vboColorsRail = new VBO(numVerticesRail, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
+    vboNormalRail = new VBO(numVerticesRail, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of vertex normal
     vaoRail = new VAO();
 
     pipelineProgramRail->Bind(); // Bind the rail pipeline program
     vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesRail, "position");
     vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboColorsRail, "color");
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboNormalRail, "normal");
     eboRail = new EBO(numVerticesRailE, elements, GL_STATIC_DRAW); //Bind the EBO
 
     free(positions);
@@ -736,7 +802,7 @@ void setDefaultRollerCamera(){
     rollerNormal = cameraUp = splineNormal[0];
 
     // offset of camera
-    cameraEye = rollerPos + 0.05f * cameraUp;
+    cameraEye = rollerPos + 0.1f * cameraUp;
 
     // The speed is 0 at the begining
     rollerSpeed=0.0;
