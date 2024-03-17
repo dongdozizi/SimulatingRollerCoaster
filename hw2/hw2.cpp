@@ -93,8 +93,9 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
-PipelineProgram* pipelineProgramRail = nullptr;
 
+// Rail VBOs, VAO and EBO
+PipelineProgram* pipelineProgramRail = nullptr;
 int numVerticesRail; // number of vertices in rail
 int numVerticesRailE; // number of elements in the rendering rail
 float railHeight=0.01;
@@ -105,7 +106,15 @@ VBO* vboNormalRail = nullptr;
 EBO* eboRail = nullptr;
 VAO* vaoRail = nullptr;
 
-// Spline VBOs, VAO and EBO
+// Ground VBOs, VAO and EBO
+PipelineProgram* pipelineProgramGround = nullptr;
+int numVerticesGround;
+GLuint texHandleGround;
+VBO* vboVerticesGround=nullptr;
+VBO* vboTexCoordGround=nullptr;
+EBO* eboGround=nullptr;
+VAO* vaoGround=nullptr;
+
 int numVerticesSpline; // number of points generated
 vector<glm::vec3> splinePoints; // spline points
 vector<float> uVec; // vector record each u for spline points
@@ -144,7 +153,6 @@ void saveScreenshot(const char* filename)
 
     delete[] screenshotData;
 }
-
 
 // Save screenshot in increasing number 0001,0002,0003....
 void autoSave() {
@@ -450,8 +458,7 @@ void mouseButtonFunc(int button, int state, int x, int y)
     mousePos[1] = y;
 }
 
-void keyboardFunc(unsigned char key, int x, int y)
-{
+void keyboardFunc(unsigned char key, int x, int y){
     switch (key)
     {
     case 27: // ESC key
@@ -650,6 +657,12 @@ void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4
 }
 
 void initSpline() {
+    // Initialize the Catmull-Rom Spline Matrix
+    catmullMatrix = glm::mat4(-catmullS, 2 - catmullS, catmullS - 2, catmullS,
+        2 * catmullS, catmullS - 3, 3 - 2 * catmullS, -catmullS,
+        -catmullS, 0, catmullS, 0,
+        0, 1, 0, 0);
+
     // Create the spline points
     mulMatrix.resize(spline.numControlPoints);
     // Draw numControlPoints points to make the spline circular
@@ -694,6 +707,20 @@ void initSpline() {
 }
 
 void initRail() {
+
+    // Create a pipeline program. This operation must be performed BEFORE we initialize any VAOs.
+    // A pipeline program contains our shaders. Different pipeline programs may contain different shaders.
+    // In this homework, we only have one set of shaders, and therefore, there is only one pipeline program.
+    // In hw2, we will need to shade different objects with different shaders, and therefore, we will have
+    // several pipeline programs (e.g., one for the rails, one for the ground/sky, etc.).
+    pipelineProgramRail= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0){
+        cout << "Failed to build the pipeline program Rail." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program Rail." << endl;
+
     numVerticesRail = numVerticesSpline * 4;
     numVerticesRailE = (numVerticesSpline - 1) * 24;
     float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
@@ -795,6 +822,33 @@ void initRail() {
     free(elements);
 }
 
+void initGround(){
+    pipelineProgramGround= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramGround->BuildShadersFromFiles(shaderBasePath, "vertexShaderGround.glsl", "fragmentShaderGround.glsl") != 0){
+        cout << "Failed to build the pipeline program Ground." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program Ground." << endl;
+    
+    numVerticesGround=6;
+    float texCoord[8]={0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f};
+    float positions[12]={-100.0f,-10.0f,-100.0f,
+        100.0f,-10.0f,-100.0f,
+        100.0f,-10.0f,100.0f,
+        -100.0f,-10.0f,100.0f};
+    unsigned int elements[6]={0,1,2,1,2,3};
+    vboVerticesGround=new VBO(4, 3, positions, GL_STATIC_DRAW);
+    vboTexCoordGround=new VBO(4, 2, texCoord, GL_STATIC_DRAW);
+    vaoGround=new VAO();
+    eboGround=new EBO(numVerticesGround,elements,GL_STATIC_DRAW);
+
+    vaoGround->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramGround, vboVerticesGround, "position");
+    vaoGround->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramGround, vboTexCoordGround, "texCoord");
+    glGenTextures(1,&texHandleGround);
+    initTexture("SnowvsCLouds2.jpg",texHandleGround);
+}
+
 // Initialize the roller coaster status and camera status
 void setDefaultRollerCamera(){
     rollerPos = splinePoints[0];
@@ -815,28 +869,10 @@ void initScene(int argc, char* argv[])
 
     // Enable z-buffering (i.e., hidden surface removal using the z-buffer algorithm).
     glEnable(GL_DEPTH_TEST);
-    // Create a pipeline program. This operation must be performed BEFORE we initialize any VAOs.
-    // A pipeline program contains our shaders. Different pipeline programs may contain different shaders.
-    // In this homework, we only have one set of shaders, and therefore, there is only one pipeline program.
-    // In hw2, we will need to shade different objects with different shaders, and therefore, we will have
-    // several pipeline programs (e.g., one for the rails, one for the ground/sky, etc.).
-    pipelineProgramRail= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
-    // Load and set up the pipeline program, including its shaders.
-    if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0)
-    {
-        cout << "Failed to build the pipeline program." << endl;
-        throw 1;
-    }
-    cout << "Successfully built the pipeline program." << endl;
-
-    // Initialize the Catmull-Rom Spline Matrix
-    catmullMatrix = glm::mat4(-catmullS, 2 - catmullS, catmullS - 2, catmullS,
-        2 * catmullS, catmullS - 3, 3 - 2 * catmullS, -catmullS,
-        -catmullS, 0, catmullS, 0,
-        0, 1, 0, 0);
 
     initSpline();
     initRail();
+    initGround();
     setDefaultRollerCamera(); 
 
     // Check for any OpenGL errors.
