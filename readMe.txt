@@ -1,7 +1,7 @@
 Subject 	: CSCI420 - Computer Graphics 
 Assignment 2: Simulating a Roller Coaster
-Author		: < Insert you name here >
-USC ID 		: < Insert your USC ID here >
+Author		: Shidong Zhang
+USC ID 		: 6673881701
 
 Description: In this assignment, we use Catmull-Rom splines along with OpenGL core profile shader-based texture mapping and Phong shading to create a roller coaster simulation.
 
@@ -13,19 +13,19 @@ Core Credit Features: (Answer these Questions with Y/N; you can also insert comm
 2. Completed all Levels:
   Level 1 : - Y
   level 2 : - Y
-  Level 3 : -
-  Level 4 : -
-  Level 5 : -
+  Level 3 : - Y
+  Level 4 : - Y
+  Level 5 : - Y
 
-3. Rendered the camera at a reasonable speed in a continuous path/orientation -
+3. Rendered the camera at a reasonable speed in a continuous path/orientation - 
 
-4. Run at interactive frame rate (>15fps at 1280 x 720) -
+4. Run at interactive frame rate (>15fps at 1280 x 720) - 
 
 5. Understandably written, well commented code -
 
 6. Attached an Animation folder containing not more than 1000 screenshots -
 
-7. Attached this ReadMe File -
+7. Attached this ReadMe File - Y
 
 Extra Credit Features: (Answer these Questions with Y/N; you can also insert comments as appropriate)
 ======================
@@ -44,7 +44,7 @@ Extra Credit Features: (Answer these Questions with Y/N; you can also insert com
 
 7. Generate track from several sequences of splines -
 
-8. Draw splines using recursive subdivision -
+8. Draw splines using recursive subdivision - Y
 
 9. Render environment in a better manner - 
 

@@ -54,7 +54,7 @@ CONTROL_STATE controlState = ROTATE;
 // Catmull-Rom Spline Matrix
 glm::mat4 catmullMatrix;
 double catmullS = 0.5;
-double maxLength = 0.001; // The maximum length for drawing lines in Spline
+double maxLength = 0.002; // The maximum length for drawing lines in Spline
 vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
@@ -94,14 +94,25 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 // CSCI 420 helper classes.
 OpenGLMatrix matrix;
 
+// Light property
+glm::vec4 La(1.0f,1.0f,1.0f,1.0f); // light ambient
+glm::vec4 Ld(1.0f,1.0f,1.0f,1.0f); // light diffuse
+glm::vec4 Ls(1.0f, 1.0f, 1.0f, 1.0f); // light specular
+glm::vec3 lightDirection(0.0f,1.0f,0.0f); // Suppose the sun is far away
+
+glm::vec4 ka(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
+glm::vec4 kd(0.5f, 0.5f, 0.5f, 1.0f); // mesh diffuse
+glm::vec4 ks(0.3f, 0.3f, 0.3f, 1.0f); // mesh specular
+float alpha=1.0f; // shininess
+
 // Rail VBOs, VAO and EBO
 PipelineProgram* pipelineProgramRail = nullptr;
 int numVerticesRail; // number of vertices in rail
 int numVerticesRailE; // number of elements in the rendering rail
-float railHeight=0.01;
+float railHeight=0.03;
 float railWidth=0.1;
 VBO* vboVerticesRail = nullptr;
-VBO* vboColorsRail = nullptr;
+VBO* vboTexCoordRail = nullptr;
 VBO* vboNormalRail = nullptr;
 EBO* eboRail = nullptr;
 VAO* vaoRail = nullptr;
@@ -115,28 +126,38 @@ VBO* vboTexCoordGround=nullptr;
 EBO* eboGround=nullptr;
 VAO* vaoGround=nullptr;
 
+// Skybox VBOs, VAO and EBO
+PipelineProgram* pipelineProgramSkybox = nullptr;
+int numVerticesSkybox;
+GLuint texHandleSkybox;
+VBO* vboVerticesSkybox = nullptr;
+VBO* vboTexCoordSkybox = nullptr;
+EBO* eboSkybox = nullptr;
+VAO* vaoSkybox = nullptr;
+
 int numVerticesSpline; // number of points generated
 vector<glm::vec3> splinePoints; // spline points
 vector<float> uVec; // vector record each u for spline points
+vector<float> pointDistance; // The distance of each points starting from the beginning
+float totalDistance; // Then total distance of the spline
 vector<int> uPosVec; // record the start position of each spline.
 vector<glm::vec3> splineTangent; // Tangent of the spline
-vector<glm::vec3> splineNormal; // Tangent of Normal
-vector<glm::vec3> splineBinormal; // Tangent of 
+vector<glm::vec3> splineNormal; // Normal of Spline
+vector<glm::vec3> splineBinormal; // Binormal of Spline
 // Represents one spline control point.
-struct Point
-{
+struct Point {
     double x, y, z;
 };
 
 // Contains the control points of the spline.
-struct Spline
-{
+struct Spline {
     int numControlPoints;
     Point* points;
 } spline;
 
 int frameCount = 0;
 double lastTimeSave = 0; // last time when saving images
+double lastTimeFps = 0; // last time when calculating fps;
 double fps = 0;
 
 // Write a screenshot to the specified filename.
@@ -156,7 +177,7 @@ void saveScreenshot(const char* filename)
 
 // Save screenshot in increasing number 0001,0002,0003....
 void autoSave() {
-    if (screenShotCounter <= 399) {
+    if (screenShotCounter <= 999) {
         char filename[40];
         sprintf(filename, "../Examples/Heightmap-%04d.jpg", ++screenShotCounter);
         saveScreenshot(filename);
@@ -246,8 +267,8 @@ int initTexture(const char* imageFilename, GLuint textureHandle)
     // Set the texture parameters.
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
     // Query support for anisotropic texture filtering.
     GLfloat fLargest;
     glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &fLargest);
@@ -276,9 +297,9 @@ void idleFunc()
 
     // Notify GLUT that it should call displayFunc.
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
-    ++frameCount;
+    
     double timeInterval = currentTime - lastTimeSave;
-    if (timeInterval > 0.001) {
+    if (timeInterval > 0.1) {
         cout << "Current time is : " << currentTime << "\n";
         cout << "Camera ";
         cout << " | cameraUp     "; for (int i = 0; i < 3; i++) cout << cameraUp[i] << " "; cout << " ";
@@ -299,19 +320,15 @@ void idleFunc()
         lastTimeSave = currentTime;
     }
 
-    //if (timeInterval > 1.0) {
-    //    fps = frameCount / timeInterval;
-    //    cout<<"FPS: "<<fps;
-
-    //    frameCount = 0;
-
-    //     cout<<"\n Translate ";
-    //     for(int i=0;i<3;i++) cout<<terrainTranslate[i]<<" ";cout<<" | Rotate ";
-    //     for(int i=0;i<3;i++) cout<<terrainRotate[i]<<" ";cout<<" | Scale ";
-    //     for(int i=0;i<3;i++) cout<<terrainScale[i]<<" ";cout<<" | Focus Rotate ";
-
-    //    lastTime = currentTime;
-    //}
+    ++frameCount;
+    timeInterval = currentTime - lastTimeFps;
+    if (timeInterval > 1.0) {
+        fps = frameCount / timeInterval;
+        sprintf(windowTitle, "CSCI 420 Homework 2 | fps: %.2f", fps);
+        glutSetWindowTitle(windowTitle);
+        frameCount = 0;
+        lastTimeFps = currentTime;
+    }
 
     glutPostRedisplay();
 }
@@ -565,23 +582,6 @@ void calculateNewCameraRoller() {
     rollerBinormal = rollerBinormalNew;
 }
 
-void drawRail(float modelViewMatrix[],float projectionMatrix[]) {
-    pipelineProgramRail->Bind();
-    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
-    // Important: these matrices must be uploaded to *all* pipeline programs used.
-    // In hw1, there is only one pipeline program, but in hw2 there will be several of them.
-    // In such a case, you must separately upload to *each* pipeline program.
-    // Important: do not make a typo in the variable name below; otherwise, the program will malfunction.
-    pipelineProgramRail->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    pipelineProgramRail->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
-
-    // Execute the rendering.
-    // Bind the VAO that we want to render. Remember, one object = one VAO. 
-
-    vaoRail->Bind();
-    glDrawElements(GL_TRIANGLES, numVerticesRailE, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVertices", starting from vertex 0.
-}
-
 void displayFunc()
 {
     // This function performs the actual rendering.
@@ -604,27 +604,56 @@ void displayFunc()
                   cameraEye[0] + cameraFocus[0], cameraEye[1] + cameraFocus[1], cameraEye[2] + cameraFocus[2],
                   cameraUp[0], cameraUp[1], cameraUp[2]);
 
-    // Model
-    //matrix.Translate(terrainTranslate[0], terrainTranslate[1], terrainTranslate[2]);
-    //matrix.Rotate(terrainRotate[0], 1.0, 0.0, 0.0);
-    //matrix.Rotate(terrainRotate[1], 0.0, 1.0, 0.0);
-    //matrix.Rotate(terrainRotate[2], 0.0, 0.0, 1.0);
-    //matrix.Scale(terrainScale[0], terrainScale[1] / 3.0, terrainScale[2]);
-
-    // In here, you can do additional modeling on the object, such as performing translations, rotations and scales.
-    // ...
-
-    // Read the current modelview and projection matrices from our helper class.
-    // The matrices are only read here; nothing is actually communicated to OpenGL yet.
+    // Get modelView matrix
     float modelViewMatrix[16];
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
     matrix.GetMatrix(modelViewMatrix);
 
+    glm::vec3 viewLightDirection = glm::normalize(glm::vec3(glm::make_mat4(modelViewMatrix) * glm::vec4(lightDirection, 0.0f)));
+
+    // Get projection matrix
     float projectionMatrix[16];
     matrix.SetMatrixMode(OpenGLMatrix::Projection);
     matrix.GetMatrix(projectionMatrix);
 
-    drawRail(modelViewMatrix, projectionMatrix);
+    // Get normal matrix
+    float normalMatrix[16];
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+    matrix.GetNormalMatrix(normalMatrix);
+
+    // Draw rail
+    pipelineProgramRail->Bind();
+    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
+    pipelineProgramRail->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    pipelineProgramRail->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    pipelineProgramRail->SetUniformVariableMatrix4fv("normalMatrix", GL_FALSE, normalMatrix);
+    pipelineProgramRail->SetUniformVariable3fv("viewLightDirection", glm::value_ptr(viewLightDirection));
+    pipelineProgramRail->SetUniformVariable4fv("La", glm::value_ptr(La));
+    pipelineProgramRail->SetUniformVariable4fv("Ld", glm::value_ptr(Ld));
+    pipelineProgramRail->SetUniformVariable4fv("Ls", glm::value_ptr(Ls));
+    pipelineProgramRail->SetUniformVariable4fv("ka", glm::value_ptr(ka));
+    pipelineProgramRail->SetUniformVariable4fv("kd", glm::value_ptr(kd));
+    pipelineProgramRail->SetUniformVariable4fv("ks", glm::value_ptr(ks));
+    pipelineProgramRail->SetUniformVariablef("alpha", alpha);
+    vaoRail->Bind();
+    glDrawElements(GL_TRIANGLES, numVerticesRailE, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesRailE", starting from vertex 0.
+
+    // Draw ground
+    pipelineProgramGround->Bind();
+    pipelineProgramGround->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    pipelineProgramGround->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    glBindTexture(GL_TEXTURE_2D, texHandleGround);
+    vaoGround->Bind();
+    glDrawElements(GL_TRIANGLES, numVerticesGround, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesGround", starting from vertex 0.
+
+    // Draw skybox
+    pipelineProgramSkybox->Bind();
+    pipelineProgramSkybox->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    pipelineProgramSkybox->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    glBindTexture(GL_TEXTURE_2D, texHandleSkybox);
+    vaoSkybox->Bind();
+    glDrawElements(GL_TRIANGLES, numVerticesSkybox, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesGround", starting from vertex 0.
+
 
     // At the end, generate new u and other vector.
     calculateNewCameraRoller();
@@ -690,12 +719,14 @@ void initSpline() {
     splineTangent.resize(splinePoints.size());
     splineBinormal.resize(splinePoints.size());
     splineNormal.resize(splinePoints.size());
+    pointDistance.resize(splinePoints.size());
 
     splineTangent[0] = glm::normalize(glm::vec3(mulMatrix[0] * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
     splineBinormal[0] = glm::normalize(glm::cross(splineTangent[0], glm::vec3(0.0f, 1.0f, 0.0f))); // Initially looking up
     splineNormal[0] = glm::normalize(glm::cross(splineBinormal[0], splineTangent[0]));
+    pointDistance[0]=0.0f;
 
-    // Calculate the following tangent, normal, binormal by camera movement
+    // Calculate the following tangent, normal, binormal, distance by camera movement
     for (int i = 1,splineCount=0; i < splinePoints.size(); i++) {
         if (uVec[i] == 0.0f) {
             splineCount++;
@@ -703,16 +734,247 @@ void initSpline() {
         splineTangent[i] = glm::normalize(glm::vec3(mulMatrix[splineCount] * glm::vec4(3.0f * uVec[i] * uVec[i], 2.0f * uVec[i], 1.0f, 0.0f)));
         splineNormal[i] = glm::normalize(glm::cross(splineBinormal[i - 1], splineTangent[i]));
         splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], splineNormal[i]));
+        pointDistance[i]=pointDistance[i-1]+glm::distance(splinePoints[i-1],splinePoints[i]);
     }
+
+    totalDistance = pointDistance[pointDistance.size() - 1];
+    cout << "The total length of the roller coaster is " << pointDistance[pointDistance.size() - 1] << " m.\n";
 }
 
-void initRail() {
+// Initialize the T-shape rail with standard normal
+void initRailStandardDoubleT() {
 
-    // Create a pipeline program. This operation must be performed BEFORE we initialize any VAOs.
-    // A pipeline program contains our shaders. Different pipeline programs may contain different shaders.
-    // In this homework, we only have one set of shaders, and therefore, there is only one pipeline program.
-    // In hw2, we will need to shade different objects with different shaders, and therefore, we will have
-    // several pipeline programs (e.g., one for the rails, one for the ground/sky, etc.).
+    pipelineProgramRail = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0) {
+        cout << "Failed to build the pipeline program Rail." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program Rail." << endl;
+
+    numVerticesRail = (numVerticesSpline - 1) * 64;
+    numVerticesRailE = (numVerticesSpline - 1) * 96;
+    float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    float* normals = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    unsigned int* elements = (unsigned int*)malloc(numVerticesRailE * sizeof(unsigned int));
+
+    // Get the positions of all vertex
+    float dxyPoint[9][2] = { 0.25f,0.5f,
+        -0.25f,0.5f,
+        -0.25f,0.25f,
+        -0.05f,0.25f,
+        -0.05f,-0.5f,
+        0.05f,-0.5,
+        0.05f,0.25f,
+        0.25f,0.25f,
+        0.25f,0.5f
+    };
+    for (int i = 0; i < 9; i++) dxyPoint[i][0] *= railHeight, dxyPoint[i][1] *= railHeight;
+    unsigned int dxyElement[6] = { 0,1,2, 0,2,3 };
+    for (int i = 0, pos = 0, posE = 0; i < numVerticesSpline - 1; i++) {
+        glm::vec3 cur[4];
+        glm::vec3 p1, p2;
+        // Left T
+        for (int j = 0; j < 8; j++) {
+            p1 = splinePoints[i] - 0.5f * railWidth * splineBinormal[i];
+            p2 = splinePoints[i + 1] - 0.5f * railWidth * splineBinormal[i + 1];
+            cur[0] = p1 + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i];
+            cur[1] = p2 + dxyPoint[j][0] * splineBinormal[i + 1] + dxyPoint[j][1] * splineNormal[i + 1];
+            cur[2] = p2 + dxyPoint[j + 1][0] * splineBinormal[i + 1] + dxyPoint[j + 1][1] * splineNormal[i + 1];
+            cur[3] = p1 + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i];
+            glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
+            for (int k1 = 0; k1 < 4; k1++) {
+                for (int k2 = 0; k2 < 3; k2++) {
+                    positions[pos] = cur[k1][k2];
+                    normals[pos] = normal[k2];
+                    pos++;
+                }
+            }
+            int st = i * 64 + j * 4;
+            for (int k = 0; k < 6; k++) {
+                elements[posE++] = st + dxyElement[k];
+            }
+        }
+        // Right T
+        for (int j = 0; j < 8; j++) {
+            p1 = splinePoints[i] + 0.5f * railWidth * splineBinormal[i];
+            p2 = splinePoints[i + 1] + 0.5f * railWidth * splineBinormal[i + 1];
+            cur[0] = p1 + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i];
+            cur[1] = p2 + dxyPoint[j][0] * splineBinormal[i + 1] + dxyPoint[j][1] * splineNormal[i + 1];
+            cur[2] = p2 + dxyPoint[j + 1][0] * splineBinormal[i + 1] + dxyPoint[j + 1][1] * splineNormal[i + 1];
+            cur[3] = p1 + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i];
+            glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
+            // Set positions and normals
+            for (int k1 = 0; k1 < 4; k1++) {
+                for (int k2 = 0; k2 < 3; k2++) {
+                    positions[pos] = cur[k1][k2];
+                    normals[pos] = normal[k2];
+                    pos++;
+                }
+            }
+            // Set elements
+            int st = i * 64 + 32 + j * 4;
+            for (int k = 0; k < 6; k++) {
+                elements[posE++] = st + dxyElement[k];
+            }
+        }
+    }
+
+    vaoRail = new VAO();
+    vaoRail->Bind();
+
+    vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboNormalRail = new VBO(numVerticesRail, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of vertex normal
+
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesRail, "position");
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboNormalRail, "normal");
+    eboRail = new EBO(numVerticesRailE, elements, GL_STATIC_DRAW); //Bind the EBO
+
+    free(positions);
+    free(elements);
+}
+
+// Initialize the T-shape rail with standard normal
+void initRailStandardT() {
+
+    pipelineProgramRail = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0) {
+        cout << "Failed to build the pipeline program Rail." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program Rail." << endl;
+
+    numVerticesRail = (numVerticesSpline - 1) * 32;
+    numVerticesRailE = (numVerticesSpline - 1) * 48;
+    float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    float* normals = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    unsigned int* elements = (unsigned int*)malloc(numVerticesRailE * sizeof(unsigned int));
+
+    // Get the positions of all vertex
+    int pos = 0;
+    float dxyPoint[9][2] = { 0.5f * railWidth,0.5f * railHeight,
+        -0.5f * railWidth,0.5f * railHeight,
+        -0.5f * railWidth,0.0f,
+        -0.25f * railWidth,0.0f,
+        -0.25f * railWidth,-0.5f * railHeight,
+        0.25f * railWidth,-0.5 * railHeight,
+        0.25f * railWidth,0.0f,
+        0.5f * railWidth,0.0f,
+        0.5f * railWidth,0.5f * railHeight };
+    for (int i = 0; i < numVerticesSpline - 1; i++) {
+        for (int j = 0; j < 8; j++) {
+            glm::vec3 cur[4] = { splinePoints[i] + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i],
+                                splinePoints[i + 1] + dxyPoint[j][0] * splineBinormal[i + 1] + dxyPoint[j][1] * splineNormal[i + 1],
+                                splinePoints[i + 1] + dxyPoint[j + 1][0] * splineBinormal[i+1] + dxyPoint[j + 1][1] * splineNormal[i + 1],
+                                splinePoints[i] + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i] };
+            glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
+            for (int k1 = 0; k1 < 4; k1++) {
+                for (int k2 = 0; k2 < 3; k2++) {
+                    positions[pos] = cur[k1][k2];
+                    normals[pos] = normal[k2];
+                    pos++;
+                }
+            }
+        }
+    }
+    unsigned int dxyElement[6] = { 0,1,2, 0,2,3 };
+
+    // Get the element array
+    pos = 0;
+    for (int i = 0; i < numVerticesSpline - 1; i++) {
+        for (int j = 0; j < 8; j++) {
+            int st = i * 32 + j * 4;
+            for (int k = 0; k < 6; k++) {
+                elements[pos++] = st + dxyElement[k];
+            }
+        }
+    }
+
+    vaoRail = new VAO();
+    vaoRail->Bind();
+
+    vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboNormalRail = new VBO(numVerticesRail, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of vertex normal
+
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesRail, "position");
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboNormalRail, "normal");
+    eboRail = new EBO(numVerticesRailE, elements, GL_STATIC_DRAW); //Bind the EBO
+
+    free(positions);
+    free(elements);
+}
+
+// Initialize the rail with standard normal
+void initRailStandard() {
+
+    pipelineProgramRail = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0) {
+        cout << "Failed to build the pipeline program Rail." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program Rail." << endl;
+
+    numVerticesRail = (numVerticesSpline-1) * 16;
+    numVerticesRailE = (numVerticesSpline - 1) * 24;
+    float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    float* normals = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
+    unsigned int* elements = (unsigned int*)malloc(numVerticesRailE * sizeof(unsigned int));
+
+    // Get the positions of all vertex
+    int pos = 0;
+    float dxyPoint[5][2] = { 0.5f * railWidth,0.5f * railHeight,
+        -0.5f * railWidth,0.5f * railHeight,
+        -0.5f * railWidth,-0.5f * railHeight,
+        0.5f * railWidth,-0.5f * railHeight,
+        0.5f * railWidth,0.5f * railHeight };
+    for (int i = 0; i < numVerticesSpline-1; i++) {
+        for (int j = 0; j < 4; j++) {
+            glm::vec3 cur[4] = { splinePoints[i] + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i],
+                                splinePoints[i + 1] + dxyPoint[j][0] * splineBinormal[i + 1] + dxyPoint[j][1] * splineNormal[i + 1],
+                                splinePoints[i + 1] + dxyPoint[j + 1][0] * splineBinormal[i+1] + dxyPoint[j + 1][1] * splineNormal[i + 1],
+                                splinePoints[i] + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i] };
+            glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
+            for (int k1 = 0; k1 < 4; k1++) {
+                for (int k2 = 0; k2 < 3; k2++) {
+                    positions[pos] = cur[k1][k2];
+                    normals[pos] = normal[k2];
+                    pos++;
+                }
+            }
+        }
+    }
+
+    unsigned int dxyElement[6] = { 0,1,2, 0,2,3 };
+
+    // Get the element array
+    pos = 0;
+    for (int i = 0; i < numVerticesSpline - 1; i++) {
+        for (int j = 0; j < 4; j++) {
+            int st = i * 16 + j * 4;
+            for (int k = 0; k < 6; k++) {
+                elements[pos++] = st + dxyElement[k];
+            }
+        }
+    }
+
+    vaoRail = new VAO();
+    vaoRail->Bind();
+    vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboNormalRail = new VBO(numVerticesRail, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of vertex normal
+
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesRail, "position");
+    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboNormalRail, "normal");
+    eboRail = new EBO(numVerticesRailE, elements, GL_STATIC_DRAW); //Bind the EBO
+
+    free(positions);
+    free(elements);
+}
+
+// Initialize the rail with pseudo normal
+void initRailPseudo() {
+
     pipelineProgramRail= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
     // Load and set up the pipeline program, including its shaders.
     if (pipelineProgramRail->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0){
@@ -724,36 +986,25 @@ void initRail() {
     numVerticesRail = numVerticesSpline * 4;
     numVerticesRailE = (numVerticesSpline - 1) * 24;
     float* positions = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
-    float* colors = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 4);
     float* normals = (float*)malloc(numVerticesRail * sizeof(unsigned int) * 3);
     unsigned int* elements = (unsigned int*)malloc(numVerticesRailE * sizeof(unsigned int));
 
+    // Get the positions of all vertex
     int pos = 0;
+    float dxyPoint[4][2] = { 0.5f*railWidth,0.5f * railHeight,
+        -0.5f * railWidth,0.5f * railHeight,
+        -0.5f * railWidth,-0.5f * railHeight,
+        0.5f * railWidth,-0.5f * railHeight };
     for (int i = 0; i < numVerticesSpline;i++){
-        glm::vec3 cur = splinePoints[i] + 0.5f * railWidth * splineBinormal[i] + 0.5f * railHeight * splineNormal[i];
-        for(int j=0;j<3;j++){
-            positions[pos++] = cur[j];
-        }
-        cur = splinePoints[i] - 0.5f * railWidth * splineBinormal[i] + 0.5f * railHeight * splineNormal[i];
-        for (int j = 0; j < 3; j++) {
-            positions[pos++] = cur[j];
-        }
-        cur = splinePoints[i] - 0.5f * railWidth * splineBinormal[i] - 0.5f * railHeight * splineNormal[i];
-        for (int j = 0; j < 3; j++) {
-            positions[pos++] = cur[j];
-        }
-        cur = splinePoints[i] + 0.5f * railWidth * splineBinormal[i] - 0.5f * railHeight * splineNormal[i];
-        for (int j = 0; j < 3; j++) {
-            positions[pos++] = cur[j];
+        for (int j = 0; j < 4; j++) {
+            glm::vec3 cur = splinePoints[i] + dxyPoint[j][0] * splineBinormal[i]+ dxyPoint[j][1]*splineNormal[i];
+            for (int k = 0; k < 3; k++) {
+                positions[pos++] = cur[k];
+            }
         }
     }
-    pos = 0;
-    for (int i = 0; i < numVerticesSpline;i++){
-        for(int j=0;j<16;j++){
-            colors[i*16+j]=1.0;
-        }
-    }
-    int dxy[8][3] = { {0,4,5}, {0,1,5},
+
+    int dxyNormal[8][3] = { {0,4,5}, {0,1,5},
         {1,5,6},{1,2,6},
         {2,6,7},{2,3,7},
         {3,7,4},{3,0,4} };
@@ -765,25 +1016,26 @@ void initRail() {
                 glm::vec3 vP[3];
                 for (int t1 = 0; t1 < 3; t1++) {
                     for (int t2 = 0; t2 < 3; t2++) {
-                        vP[t1][t2] = positions[(i * 4 + dxy[j][(k + t1) % 3]) * 3 + t2];
+                        vP[t1][t2] = positions[(i * 4 + dxyNormal[j][(k + t1) % 3]) * 3 + t2];
                     }
                 }
                 glm::vec3 vl = vP[0] - vP[1];
                 glm::vec3 vr = vP[2] - vP[1];
                 glm::vec3 partsum = glm::angle(vl, vr) * glm::cross(vr, vl);
-                for (int p = 0, st = i * 4 + dxy[j][(k + 1) % 3]; p < 3; p++) {
+                for (int p = 0, st = i * 4 + dxyNormal[j][(k + 1) % 3]; p < 3; p++) {
                     normals[st * 3 + p] += partsum[p];
                 }
             }
         }
     }
-    // Didn't fully calculate the first and last, so add it on.
+    // Didn't fully calculate the first and last normal, so add it on.
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 3; j++) {
             normals[i * 3 + j] += normals[(numVerticesSpline - 1) * 4 * 3 + i * 3 + j];
             normals[(numVerticesSpline - 1) * 4 * 3 + i * 3 + j] = normals[i * 3 + j];
         }
     }
+    // Normalize the normal
     for (int i = 0; i < numVerticesRail; i++) {
         float sum = 0;
         for (int j = 0; j < 3; j++) {
@@ -800,29 +1052,27 @@ void initRail() {
     for (int i = 0; i < numVerticesSpline-1; i++){
         for (int j = 0; j < 8; j++) {
             for (int k = 0; k < 3; k++) {
-                elements[pos++] = i * 4 + dxy[j][k];
+                elements[pos++] = i * 4 + dxyNormal[j][k];
             }
         }
     }
 
-
-    vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
-    vboColorsRail = new VBO(numVerticesRail, 4, colors, GL_STATIC_DRAW); // 4 values per color, usinng number of point
-    vboNormalRail = new VBO(numVerticesRail, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of vertex normal
     vaoRail = new VAO();
+    vaoRail->Bind();
+    vboVerticesRail = new VBO(numVerticesRail, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of point
+    vboNormalRail = new VBO(numVerticesRail, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of vertex normal
 
-    pipelineProgramRail->Bind(); // Bind the rail pipeline program
     vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboVerticesRail, "position");
-    vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboColorsRail, "color");
     vaoRail->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramRail, vboNormalRail, "normal");
     eboRail = new EBO(numVerticesRailE, elements, GL_STATIC_DRAW); //Bind the EBO
 
     free(positions);
-    free(colors);
     free(elements);
 }
 
+// Initialize the ground
 void initGround(){
+
     pipelineProgramGround= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
     // Load and set up the pipeline program, including its shaders.
     if (pipelineProgramGround->BuildShadersFromFiles(shaderBasePath, "vertexShaderGround.glsl", "fragmentShaderGround.glsl") != 0){
@@ -830,24 +1080,68 @@ void initGround(){
         throw 1;
     }
     cout << "Successfully built the pipeline program Ground." << endl;
-    
+
     numVerticesGround=6;
-    float texCoord[8]={0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f};
-    float positions[12]={-100.0f,-10.0f,-100.0f,
-        100.0f,-10.0f,-100.0f,
-        100.0f,-10.0f,100.0f,
-        -100.0f,-10.0f,100.0f};
-    unsigned int elements[6]={0,1,2,1,2,3};
+    float width=200.0f,height=200.0f,tall=-4.0f;
+    float texCoord[8]={0.0f,0.0f,100.0f,0.0f,100.0f,100.0f,0.0f,100.0f};
+    float positions[12]={-width,tall,-height,
+        width,tall,-height,
+        width,tall,height,
+        -width,tall,height};
+    unsigned int elements[6]={0,1,2,0,2,3};
+    
+    vaoGround=new VAO();
+    vaoGround->Bind();
     vboVerticesGround=new VBO(4, 3, positions, GL_STATIC_DRAW);
     vboTexCoordGround=new VBO(4, 2, texCoord, GL_STATIC_DRAW);
-    vaoGround=new VAO();
-    eboGround=new EBO(numVerticesGround,elements,GL_STATIC_DRAW);
 
+    eboGround=new EBO(numVerticesGround,elements,GL_STATIC_DRAW);
     vaoGround->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramGround, vboVerticesGround, "position");
     vaoGround->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramGround, vboTexCoordGround, "texCoord");
     glGenTextures(1,&texHandleGround);
-    initTexture("SnowvsCLouds2.jpg",texHandleGround);
+    initTexture("dirtGround.jpg",texHandleGround);
 }
+
+void initSkybox() {
+
+    pipelineProgramSkybox = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (pipelineProgramSkybox->BuildShadersFromFiles(shaderBasePath, "vertexShaderSkybox.glsl", "fragmentShaderSkybox.glsl") != 0) {
+        cout << "Failed to build the pipeline program SkyBox." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program SkyBox." << endl;
+
+    numVerticesSkybox =30;
+    float width = 150.0f, tall = 0.0f;
+    float positions[42] = { width,width + tall,-width,width,width + tall,width,
+        width,tall+width,-width,-width,tall + width,-width,-width,tall + width,width,width,tall + width,width,width,tall + width,-width,
+        width,tall-width,-width,-width,tall - width,-width,-width,tall - width,width,width,tall - width,width,width,tall - width,-width,
+        width,tall - width,-width ,width,tall - width,width
+    };
+    float texCoord[28] = { 0.25f,1.0f,0.5f,1.0f,
+        0.0f,2.0f / 3.0f,0.25f,2.0f / 3.0f,0.5f,2.0f / 3.0f,0.75f,2.0f / 3.0f,1.0f,2.0f / 3.0f,
+        0.0f,1.0f / 3.0f,0.25f,1.0f / 3.0f,0.5f,1.0f / 3.0f,0.75f,1.0f / 3.0f,1.0f,1.0f / 3.0f,
+        0.25f,0.0f,0.5f,0.0f
+    };
+    unsigned int elements[36] = { 0,1,4,0,4,3,
+        8,7,2,8,2,3,9,8,3,9,3,4,10,9,4,10,4,5,11,10,5,11,5,6,
+        8,9,13,8,13,12
+    };
+    int posP = 0, posT = 0;
+
+    vaoSkybox = new VAO();
+    vaoSkybox->Bind();
+    vboVerticesSkybox = new VBO(14, 3, positions, GL_STATIC_DRAW);
+    vboTexCoordSkybox = new VBO(14, 2, texCoord, GL_STATIC_DRAW);
+
+    eboSkybox = new EBO(numVerticesSkybox, elements, GL_STATIC_DRAW);
+    vaoSkybox->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramSkybox, vboVerticesSkybox, "position");
+    vaoSkybox->ConnectPipelineProgramAndVBOAndShaderVariable(pipelineProgramSkybox, vboTexCoordSkybox, "texCoord");
+    glGenTextures(1, &texHandleSkybox);
+    initTexture("skyBoxDessert.jpg", texHandleSkybox);
+}
+
 
 // Initialize the roller coaster status and camera status
 void setDefaultRollerCamera(){
@@ -871,9 +1165,10 @@ void initScene(int argc, char* argv[])
     glEnable(GL_DEPTH_TEST);
 
     initSpline();
-    initRail();
+    initRailStandardDoubleT();
     initGround();
-    setDefaultRollerCamera(); 
+    initSkybox();
+    setDefaultRollerCamera();
 
     // Check for any OpenGL errors.
     std::cout << "GL error status is: " << glGetError() << std::endl;
