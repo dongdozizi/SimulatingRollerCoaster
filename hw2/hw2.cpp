@@ -299,7 +299,7 @@ void idleFunc()
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
     
     double timeInterval = currentTime - lastTimeSave;
-    if (timeInterval > 0.1) {
+    if (timeInterval > 0.1f) {
         cout << "Current time is : " << currentTime << "\n";
         cout << "Camera ";
         cout << " | cameraUp     "; for (int i = 0; i < 3; i++) cout << cameraUp[i] << " "; cout << " ";
@@ -557,12 +557,8 @@ void calculateNewCameraRoller() {
 
     // Interpolate the position
     glm::vec3 rollerPosNew;
-    if (uPos == r) {
-        rollerPosNew = (splinePoints[uPos] * (tmpU - uVec[uPos]) + splinePoints[uPos + 1] * (1.0f - tmpU)) / (1.0f - uVec[uPos]);
-    }
-    else {
-        rollerPosNew = (splinePoints[uPos] * (tmpU - uVec[uPos]) + splinePoints[uPos + 1] * (uVec[uPos + 1] - tmpU)) / (uVec[uPos + 1] - uVec[uPos]);
-    }
+    glm::vec4 uCalc(tmpU*tmpU*tmpU,tmpU*tmpU,tmpU,1);
+    rollerPosNew=mulMatrix[splineCount]*uCalc;
 
     glm::vec3 rollerTangentNew = splineTangent[uPos];
     glm::vec3 rollerNormalNew = splineNormal[uPos];
@@ -856,9 +852,9 @@ void initRailStandardT() {
     float dxyPoint[9][2] = { 0.5f * railWidth,0.5f * railHeight,
         -0.5f * railWidth,0.5f * railHeight,
         -0.5f * railWidth,0.0f,
-        -0.25f * railWidth,0.0f,
+        -0.25f * railWidth,0.0f
         -0.25f * railWidth,-0.5f * railHeight,
-        0.25f * railWidth,-0.5 * railHeight,
+        0.25f * railWidth,-0.5f * railHeight,
         0.25f * railWidth,0.0f,
         0.5f * railWidth,0.0f,
         0.5f * railWidth,0.5f * railHeight };
