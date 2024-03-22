@@ -145,11 +145,14 @@ struct RailSupport : ThreeDimensionObject {
     float space = 0.2f; // The space between each support
     float heightBase = 0.1f; // The height for base
     float heightBetween = 0.15f; // The height between each support
+    float lengthSide=0.02f; // The length of each cuboid
     float width = 0.4f;
     int count; // The number of support
     vector<vector<glm::vec3>> hexagon; //The hexagon of each slice of support
+    vector<glm::vec3> tangent, binormal, points; // The points, tangent,binormal of the support structure
     vector<float> yMin, yMid, yMax; // The highest and the lowest of each hexagon
     vector<int> supportCount[2]; //supportCount[0][i] is the lowest support, supportCount[1][i] is the highest support
+    glm::vec3 upVec=glm::vec3(0.0f, 1.0f, 0.0f); // The up vector
 }railSupport;
 
 // Ground properties
@@ -1038,6 +1041,7 @@ void addCuboid(vector<glm::vec3>& cube, vector<float>& positions, vector<float>&
     // element of each triangle
     unsigned int dxyTri[6] = { 0,1,2,0,2,3 };
     for (int i = 0; i < 6; i++) {
+
         glm::vec3 normal = glm::normalize(glm::cross(cube[dxyElem[dxyRec[i][2]]] - cube[dxyElem[dxyRec[i][1]]], cube[dxyElem[dxyRec[i][0]]] - cube[dxyElem[dxyRec[i][1]]]));
         unsigned int st = positions.size() / 3;
         for (int k1 = 0; k1 < 4; k1++) {
@@ -1076,6 +1080,14 @@ void initRailTie() {
     vector<float> positions, normals, texCoord;
     vector<unsigned int> elements;
 
+    float dxyPos[8][3] = { {-0.5f,0.5f,0.5f},{0.5f,0.5f,0.5f},{0.5f,0.5f,-0.5f},{-0.5f,0.5f,-0.5f},
+    {-0.5f,-0.5f,0.5f},{0.5f,-0.5f,0.5f},{0.5f,-0.5f,-0.5f},{-0.5f,-0.5f,-0.5f} };
+    for (int i = 0; i < 8; i++) {
+        dxyPos[i][0] *= railTie.length;
+        dxyPos[i][1] *= railTie.height;
+        dxyPos[i][2] *= railTie.width;
+    }
+
     for (int i = 0; i < railTie.count; i++) {
         // calculate distance from the begining, which is (i+0.5)*space
         float distance=(1.0f*i)*railTie.space+railTie.space*0.5f;
@@ -1086,13 +1098,7 @@ void initRailTie() {
         glm::vec3 pCenter=splinePoints[cnt]+ratio*(splinePoints[cnt+1]-splinePoints[cnt]);
         pCenter-=(0.5f*rail.heightT+0.5f*railTie.height)*splineNormal[cnt];
         // Fill in the position,normal,tex coordinate, elements
-        float dxyPos[8][3] = { {-0.5f,0.5f,0.5f},{0.5f,0.5f,0.5f},{0.5f,0.5f,-0.5f},{-0.5f,0.5f,-0.5f},
-            {-0.5f,-0.5f,0.5f},{0.5f,-0.5f,0.5f},{0.5f,-0.5f,-0.5f},{-0.5f,-0.5f,-0.5f} };
-        for (int i = 0; i < 8; i++) {
-            dxyPos[i][0] *= railTie.length;
-            dxyPos[i][1] *= railTie.height;
-            dxyPos[i][2] *= railTie.width;
-        }
+
         vector<glm::vec3> p(8);
         for(int j=0;j<8;j++){
             p[j]=pCenter+dxyPos[j][0]*splineBinormal[cnt]+dxyPos[j][1]*splineNormal[cnt]+dxyPos[j][2]*splineTangent[cnt];
@@ -1135,25 +1141,27 @@ void initRailSupport() {
     railSupport.yMin.resize(railSupport.count);
     railSupport.supportCount[0].resize(railSupport.count);
     railSupport.supportCount[1].resize(railSupport.count);
+    railSupport.binormal.resize(railSupport.count);
+    railSupport.tangent.resize(railSupport.count);
+    railSupport.points.resize(railSupport.count);
 
     // Initialize each hexagon
     for (int i = 0; i < railSupport.count; i++) {
-        // Get the binormal and the center point of each position, here we assume up vector is (0,1,0)
-        glm::vec3 upVec(0.0f, 1.0f, 0.0f);
+        // Get the binormal and the center point of each position, here we assume up vector is (0,1,0)    
         float dL = (1.0f * i) * railSupport.space;
         int cntL = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dL) - pointDisHorizon.begin();
         glm::vec3 pCenterL = splinePoints[cntL] + (dL - pointDisHorizon[cntL]) / (pointDisHorizon[cntL + 1] - pointDisHorizon[cntL]) * (splinePoints[cntL + 1] - splinePoints[cntL]);
-        glm::vec3 binormalL = glm::normalize(glm::cross(splineTangent[cntL], upVec));
+        glm::vec3 binormalL = glm::normalize(glm::cross(splineTangent[cntL], railSupport.upVec));
 
         float dM = (1.0f * i + 0.5f) * railSupport.space;
         int cntM = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM) - pointDisHorizon.begin();
         glm::vec3 pCenterM = splinePoints[cntM] + (dM - pointDisHorizon[cntM]) / (pointDisHorizon[cntM + 1] - pointDisHorizon[cntM]) * (splinePoints[cntM + 1] - splinePoints[cntM]);
-        glm::vec3 binormalM = glm::normalize(glm::cross(splineTangent[cntM], upVec));
+        glm::vec3 binormalM = glm::normalize(glm::cross(splineTangent[cntM], railSupport.upVec));
 
         float dR = (1.0f * i + 1.0f) * railSupport.space;
         int cntR = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dR) - pointDisHorizon.begin();
         glm::vec3 pCenterR = splinePoints[cntR] + (dR - pointDisHorizon[cntR]) / (pointDisHorizon[cntR + 1] - pointDisHorizon[cntR]) * (splinePoints[cntR + 1] - splinePoints[cntR]);
-        glm::vec3 binormalR = glm::normalize(glm::cross(splineTangent[cntR], upVec));
+        glm::vec3 binormalR = glm::normalize(glm::cross(splineTangent[cntR], railSupport.upVec));
 
         // Get the lowest, medium, and highest y value
         railSupport.yMin[i] = splinePoints[cntL].y;
@@ -1163,6 +1171,11 @@ void initRailSupport() {
             railSupport.yMin[i] = min(railSupport.yMin[i], min(splinePoints[j].y + 0.5f * rail.width * splineBinormal[j].y, splinePoints[j].y - 0.5f * rail.width * splineBinormal[j].y));
             railSupport.yMax[i] = max(railSupport.yMax[i], max(splinePoints[j].y + 0.5f * rail.width * splineBinormal[j].y, splinePoints[j].y - 0.5f * rail.width * splineBinormal[j].y));
         }
+
+        railSupport.points[i] = pCenterM;
+        railSupport.tangent[i] = glm::normalize(glm::cross(railSupport.upVec,binormalM));
+        railSupport.binormal[i] = binormalM;
+
         railSupport.hexagon[i][0] = pCenterL - 0.5f * railSupport.width * binormalL;
         railSupport.hexagon[i][1] = pCenterL + 0.5f * railSupport.width * binormalL;
         railSupport.hexagon[i][2] = pCenterM - 0.5f * railSupport.width * binormalM;
@@ -1207,7 +1220,7 @@ void initRailSupport() {
             if (railSupport.yMin[j] > railSupport.yMid[i]) {
                 continue;
             }
-            minHeight = max(minHeight, railSupport.yMax[j]);
+            minHeight = max(minHeight, railSupport.yMax[j]+0.5f*rail.width);
         }
         railSupport.supportCount[1][i] = floor((railSupport.yMid[i] - railSupport.heightBase-ground.height) / railSupport.heightBetween);
         railSupport.supportCount[0][i] = ceil((minHeight-railSupport.heightBase - ground.height)/railSupport.heightBetween);
@@ -1218,13 +1231,13 @@ void initRailSupport() {
 
     vector<float> positions, normals, texCoord;
     vector<unsigned int> elements;
-
-    float dxyTC[4][2] = { 0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f };
-    int dxyP[4][2] = {0,2,2,4,1,3,3,5};
-    int dxyE[6] = {0,1,2,0,2,3};
+    
+    float dxyRect[4][2] = { -0.5f,0.5f,0.5f,0.5f,0.5f,-0.5f,-0.5f,-0.5f };
 
     // Generate each support slice
     for (int i = 0; i < railSupport.count; i++) {
+
+        // Generate the perpendicular
         if (railSupport.supportCount[0][i] == -1) {
             continue;
         }
@@ -1236,37 +1249,67 @@ void initRailSupport() {
             yLow = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[0][i];
         }
         yHigh = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[1][i];
-        vector<glm::vec3>
-        addCuboid();
+        vector<glm::vec3> p(8);
+        glm::vec3 pCenter;
+        pCenter=railSupport.hexagon[i][2];
+        for (int j = 0; j < 4; j++) {
+            glm::vec3 tmpP = pCenter + dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] + dxyRect[j][1]* railSupport.lengthSide * railSupport.tangent[i];
+            p[j] = glm::vec3(tmpP.x,yHigh,tmpP.z);
+            p[j + 4] = glm::vec3(tmpP.x, yLow, tmpP.z);
+        }
+        addCuboid(p, positions, normals, texCoord, elements);
+        pCenter = railSupport.hexagon[i][3];
+        for (int j = 0; j < 4; j++) {
+            glm::vec3 tmpP = pCenter + dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] + dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+            p[j] = glm::vec3(tmpP.x, yHigh, tmpP.z);
+            p[j + 4] = glm::vec3(tmpP.x, yLow, tmpP.z);
+        }
+        addCuboid(p, positions, normals, texCoord, elements);
+
+        // Generate the level
+        for (int j = railSupport.supportCount[0][i]; j <= railSupport.supportCount[1][i]; j++) {
+            pCenter = railSupport.points[i];
+            float y = ground.height+railSupport.heightBase + railSupport.heightBetween * (1.0f * j);
+            for (int k = 0; k < 4; k++) {
+                glm::vec3 tmpP = pCenter + dxyRect[k][0] * railSupport.lengthSide * (-railSupport.tangent[i]) + dxyRect[k][1] * railSupport.width * railSupport.binormal[i];
+                p[k] = glm::vec3(tmpP.x, y + 0.5f * railSupport.lengthSide, tmpP.z);
+                p[k + 4] = glm::vec3(tmpP.x, y - 0.5f * railSupport.lengthSide, tmpP.z);
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+        }
+
     }
 
-    // Generate support between slice
-    for (int i = 0; i < railSupport.count; i++) {
-        for (int j = 0; j < 4; j++) {
-            glm::vec3 p[4];
-            p[0] = p[1] = railSupport.hexagon[i][dxyP[j][0]];
-            p[2] = p[3] = railSupport.hexagon[i][dxyP[j][1]];
-            if (railSupport.supportCount[0][i] == 0) {
-                p[0].y = p[3].y = ground.height;
-            }
-            else {
-                p[0].y = p[3].y = ground.height+railSupport.heightBase+railSupport.heightBetween*railSupport.supportCount[0][i];
-            }
-            p[1].y = p[2].y = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[1][i];
-            glm::vec3 normal = glm::normalize(glm::cross(p[1] - p[0], p[3] - p[0]));
-            for (int k1 = 0; k1 < 4; k1++) {
-                for (int k2 = 0; k2 < 3; k2++) {
-                    positions.push_back(p[k1][k2]);
-                    normals.push_back(normal[k2]);
-                }
-                texCoord.push_back(dxyTC[k1][0]);
-                texCoord.push_back(dxyTC[k1][1]);
-            }
-            for (int k = 0; k < 6; k++) {
-                elements.push_back(i * 16 + j * 4 + dxyE[k]);
-            }
-        }
-    }
+    //float dxyTC[4][2] = { 0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f };
+    //int dxyP[4][2] = { 0,2,2,4,1,3,3,5 };
+    //int dxyE[6] = { 0,1,2,0,2,3 };
+    //// Generate support between slice
+    //for (int i = 0; i < railSupport.count; i++) {
+    //    for (int j = 0; j < 4; j++) {
+    //        glm::vec3 p[4];
+    //        p[0] = p[1] = railSupport.hexagon[i][dxyP[j][0]];
+    //        p[2] = p[3] = railSupport.hexagon[i][dxyP[j][1]];
+    //        if (railSupport.supportCount[0][i] == 0) {
+    //            p[0].y = p[3].y = ground.height;
+    //        }
+    //        else {
+    //            p[0].y = p[3].y = ground.height+railSupport.heightBase+railSupport.heightBetween*railSupport.supportCount[0][i];
+    //        }
+    //        p[1].y = p[2].y = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[1][i];
+    //        glm::vec3 normal = glm::normalize(glm::cross(p[1] - p[0], p[3] - p[0]));
+    //        for (int k1 = 0; k1 < 4; k1++) {
+    //            for (int k2 = 0; k2 < 3; k2++) {
+    //                positions.push_back(p[k1][k2]);
+    //                normals.push_back(normal[k2]);
+    //            }
+    //            texCoord.push_back(dxyTC[k1][0]);
+    //            texCoord.push_back(dxyTC[k1][1]);
+    //        }
+    //        for (int k = 0; k < 6; k++) {
+    //            elements.push_back(i * 16 + j * 4 + dxyE[k]);
+    //        }
+    //    }
+    //}
 
     railSupport.numVertices = positions.size() / 3;
     railSupport.numElements = elements.size();
@@ -1284,7 +1327,7 @@ void initRailSupport() {
     railSupport.vao->ConnectPipelineProgramAndVBOAndShaderVariable(railSupport.pipelineProgram, railSupport.vboTexCoord, "texCoord");
     railSupport.ebo = new EBO(railSupport.numElements, elements.data(), GL_STATIC_DRAW); //Bind the EBO
     glGenTextures(1, &railSupport.texHandle);
-    initTexture("texture/skyBoxDessert.jpg", railSupport.texHandle);
+    initTexture("texture/wood.jpg", railSupport.texHandle);
 }
 
 
@@ -1398,7 +1441,7 @@ void initScene(int argc, char* argv[])
     wood.ka=glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
     wood.kd=glm::vec4(0.5f, 0.5f, 0.5f, 1.0f); // mesh diffuse
     wood.ks=glm::vec4(0.3f, 0.3f, 0.3f, 1.0f); // mesh specular
-    wood.alpha=1.0f; // shininess
+    wood.alpha=20.0f; // shininess
 
     // Metal material
     metal.ka=glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
