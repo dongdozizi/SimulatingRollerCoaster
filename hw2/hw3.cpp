@@ -95,20 +95,22 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 OpenGLMatrix matrix;
 
 // Light property
-struct Light{
-    glm::vec4 La; // light ambient
-    glm::vec4 Ld; // light diffuse
-    glm::vec4 Ls; // light specular
-    glm::vec3 lightDirection; // light direction
-}sunLight;
+glm::vec4 La(1.0f,1.0f,1.0f,1.0f); // light ambient
+glm::vec4 Ld(1.0f,1.0f,1.0f,1.0f); // light diffuse
+glm::vec4 Ls(1.0f, 1.0f, 1.0f, 1.0f); // light specular
+glm::vec3 lightDirection(0.0f,1.0f,0.0f); // Suppose the sun is far away
 
+// Wood property
+glm::vec4 kaWood(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
+glm::vec4 kdWood(0.5f, 0.5f, 0.5f, 1.0f); // mesh diffuse
+glm::vec4 ksWood(0.3f, 0.3f, 0.3f, 1.0f); // mesh specular
+float alphaWood=1.0f; // shininess
 
-struct Material{
-    glm::vec4 ka; // Mesh ambient
-    glm::vec4 kd; // Mesh diffuse
-    glm::vec4 ks; // Mesh specular
-    float alpha; // Shininess
-}metal,wood;
+// Metal property
+glm::vec4 kaMetal(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
+glm::vec4 kdMetal(0.4f, 0.4f, 0.4f, 1.0f); // mesh diffuse
+glm::vec4 ksMetal(0.9f, 0.9f, 0.9f, 1.0f); // mesh specular
+float alphaMetal = 15.0f; // shininess
 
 // 3D object class
 struct ThreeDimensionObject{
@@ -132,10 +134,10 @@ struct Rail : ThreeDimensionObject {
 
 // Rail tie properties
 struct RailTie: ThreeDimensionObject{
-    float height=0.015;
-    float width=0.04;
-    float length=0.12f;
-    float space=0.1f;
+    float height=0.05;
+    float width;
+    float length;
+    float space=0.5f;
     int count;
 }railTie;
 
@@ -590,69 +592,6 @@ void calculateNewCameraRoller() {
     rollerBinormal = rollerBinormalNew;
 }
 
-void drawWithLight(ThreeDimensionObject object,Light light,Material material){
-    // Get modelView matrix
-    float modelViewMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetMatrix(modelViewMatrix);
-
-    glm::vec3 viewLightDirection = glm::normalize(glm::vec3(glm::make_mat4(modelViewMatrix) * glm::vec4(light.lightDirection, 0.0f)));
-
-    // Get projection matrix
-    float projectionMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::Projection);
-    matrix.GetMatrix(projectionMatrix);
-
-    // Get normal matrix
-    float normalMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetNormalMatrix(normalMatrix);
-
-    object.pipelineProgram->Bind();
-    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
-    object.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    object.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
-    object.pipelineProgram->SetUniformVariableMatrix4fv("normalMatrix", GL_FALSE, normalMatrix);
-    object.pipelineProgram->SetUniformVariable3fv("viewLightDirection", glm::value_ptr(viewLightDirection));
-    object.pipelineProgram->SetUniformVariable4fv("La", glm::value_ptr(light.La));
-    object.pipelineProgram->SetUniformVariable4fv("Ld", glm::value_ptr(light.Ld));
-    object.pipelineProgram->SetUniformVariable4fv("Ls", glm::value_ptr(light.Ls));
-    object.pipelineProgram->SetUniformVariable4fv("ka", glm::value_ptr(material.ka));
-    object.pipelineProgram->SetUniformVariable4fv("kd", glm::value_ptr(material.kd));
-    object.pipelineProgram->SetUniformVariable4fv("ks", glm::value_ptr(material.ks));
-    object.pipelineProgram->SetUniformVariablef("alpha", material.alpha);
-    object.vao->Bind();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, object.texHandle);
-    glDrawElements(GL_TRIANGLES, object.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
-
-}
-
-void drawWithoutLight(ThreeDimensionObject object){
-    // Get modelView matrix
-    float modelViewMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetMatrix(modelViewMatrix);
-
-    // Get projection matrix
-    float projectionMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::Projection);
-    matrix.GetMatrix(projectionMatrix);
-
-    // Get normal matrix
-    float normalMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetNormalMatrix(normalMatrix);
-
-    object.pipelineProgram->Bind();
-    object.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    object.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
-    object.vao->Bind();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, object.texHandle);
-    glDrawElements(GL_TRIANGLES, object.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
-}
-
 void displayFunc()
 {
     // This function performs the actual rendering.
@@ -675,17 +614,60 @@ void displayFunc()
                   cameraEye[0] + cameraFocus[0], cameraEye[1] + cameraFocus[1], cameraEye[2] + cameraFocus[2],
                   cameraUp[0], cameraUp[1], cameraUp[2]);
 
-    // Draw rail
-    drawWithLight(rail,sunLight,metal);
+    // Get modelView matrix
+    float modelViewMatrix[16];
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+    matrix.GetMatrix(modelViewMatrix);
 
-    // Draw rail tie;
-    drawWithLight(railTie,sunLight,wood);
+    glm::vec3 viewLightDirection = glm::normalize(glm::vec3(glm::make_mat4(modelViewMatrix) * glm::vec4(lightDirection, 0.0f)));
+
+    // Get projection matrix
+    float projectionMatrix[16];
+    matrix.SetMatrixMode(OpenGLMatrix::Projection);
+    matrix.GetMatrix(projectionMatrix);
+
+    // Get normal matrix
+    float normalMatrix[16];
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+    matrix.GetNormalMatrix(normalMatrix);
+
+    // Draw rail
+    rail.pipelineProgram->Bind();
+    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
+    rail.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    rail.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    rail.pipelineProgram->SetUniformVariableMatrix4fv("normalMatrix", GL_FALSE, normalMatrix);
+    rail.pipelineProgram->SetUniformVariable3fv("viewLightDirection", glm::value_ptr(viewLightDirection));
+    rail.pipelineProgram->SetUniformVariable4fv("La", glm::value_ptr(La));
+    rail.pipelineProgram->SetUniformVariable4fv("Ld", glm::value_ptr(Ld));
+    rail.pipelineProgram->SetUniformVariable4fv("Ls", glm::value_ptr(Ls));
+    rail.pipelineProgram->SetUniformVariable4fv("ka", glm::value_ptr(kaMetal));
+    rail.pipelineProgram->SetUniformVariable4fv("kd", glm::value_ptr(kdMetal));
+    rail.pipelineProgram->SetUniformVariable4fv("ks", glm::value_ptr(ksMetal));
+    rail.pipelineProgram->SetUniformVariablef("alpha", alphaMetal);
+    rail.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, rail.texHandle);
+    glDrawElements(GL_TRIANGLES, rail.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesRailE", starting from vertex 0.
 
     // Draw ground
-    drawWithoutLight(ground);
+    ground.pipelineProgram->Bind();
+    ground.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    ground.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    ground.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, ground.texHandle);
+    glDrawElements(GL_TRIANGLES, ground.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesGround", starting from vertex 0.
 
     // Draw skybox
-    drawWithoutLight(skyBox);
+    skyBox.pipelineProgram->Bind();
+    skyBox.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    skyBox.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    skyBox.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, skyBox.texHandle);
+    glDrawElements(GL_TRIANGLES, skyBox.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numVerticesGround", starting from vertex 0.
+
 
     // At the end, generate new u and other vector.
     calculateNewCameraRoller();
@@ -997,91 +979,103 @@ void initRailTie() {
     railTie.numVertices = railTie.count * 24;
     railTie.numElements = railTie.count * 36;
 
-    cout<<"There are total "<<railTie.count<<" counts of rail tie, "<<" the space between them is "<<railTie.space<<"\n";
+    //rail.numVertices = (numVerticesSpline - 1) * 64;
+    //rail.numElements = (numVerticesSpline - 1) * 96;
+    //float* positions = (float*)malloc(rail.numVertices * sizeof(unsigned int) * 3);
+    //float* normals = (float*)malloc(rail.numVertices * sizeof(unsigned int) * 3);
+    //float* texCoord = (float*)malloc(rail.numVertices * sizeof(unsigned int) * 2);
+    //unsigned int* elements = (unsigned int*)malloc(rail.numElements * sizeof(unsigned int));
+    //if (positions == NULL || normals == NULL || texCoord == NULL || elements == NULL) {
+    //    cout << "Standard Double-T memory allocation fail.\n";
+    //    exit(0);
+    //}
 
-    float* positions = (float*)malloc(rail.numVertices * sizeof(unsigned int) * 3);
-    float* normals = (float*)malloc(rail.numVertices * sizeof(unsigned int) * 3);
-    float* texCoord = (float*)malloc(rail.numVertices * sizeof(unsigned int) * 2);
-    unsigned int* elements = (unsigned int*)malloc(rail.numElements * sizeof(unsigned int));
-    if (positions == NULL || normals == NULL || texCoord == NULL || elements == NULL) {
-       cout << "Standard Double-T memory allocation fail.\n";
-       exit(0);
-    }
+    //// Get the positions of all vertex
+    //float dxyPoint[9][2] = { 0.25f,0.5f,
+    //    -0.25f,0.5f,
+    //    -0.25f,0.25f,
+    //    -0.05f,0.25f,
+    //    -0.05f,-0.5f,
+    //    0.05f,-0.5,
+    //    0.05f,0.25f,
+    //    0.25f,0.25f,
+    //    0.25f,0.5f
+    //};
+    //for (int i = 0; i < 9; i++) dxyPoint[i][0] *= rail.height, dxyPoint[i][1] *= rail.height;
+    //unsigned int dxyElement[6] = { 0,1,2, 0,2,3 };
+    //float dxyCoord[4][2] = { {1.0f,0.0f},{1.0f,1.0f},{0.0f,1.0f},{0.0f,0.0f} };
 
-    // position, texture corrdinate of each rail tie
-    float dxyPos[14][3] = { {-0.5f,0.5f,0.5f},{0.5f,0.5f,0.5f},
-        {-0.5f,0.5f,0.5f},{-0.5f,0.5f,-0.5f},{0.5f,0.5f,-0.5f},{0.5f,0.5f,0.5f},{-0.5f,0.5f,0.5f},
-        {-0.5f,-0.5f,0.5f},{-0.5f,-0.5f,-0.5f},{0.5f,-0.5f,-0.5f},{0.5f,-0.5f,0.5f},{-0.5f,-0.5f,0.5f},
-        {-0.5f,-0.5f,0.5f} ,{0.5f,-0.5f,0.5f}
-    };
-    for(int i=0;i<14;i++){
-        dxyPos[i][0]*=railTie.length;
-        dxyPos[i][1]*=railTie.height;
-        dxyPos[i][2]*=railTie.width;
-    }
-    float dxyTC[14][2] = { {0.25f,1.0f},{0.5f,1.0f},
-        {0.0f,2.0f / 3.0f},{0.25f,2.0f / 3.0f},{0.5f,2.0f / 3.0f},{0.75f,2.0f / 3.0f},{1.0f,2.0f / 3.0f},
-        {0.0f,1.0f / 3.0f},{0.25f,1.0f / 3.0f},{0.5f,1.0f / 3.0f},{0.75f,1.0f / 3.0f},{1.0f,1.0f / 3.0f},
-        {0.25f,0.0f},{0.5f,0.0f}
-    };
-    // element of each rectangle
-    unsigned int dxyRec[6][4] = { {0,1,4,3},
-        {8,7,2,3},{9,8,3,4},{10,9,4,5},{11,10,5,6},
-        {8,9,13,12}
-    };
-    // element of each triangle
-    unsigned int dxyTri[6]={0,1,2,0,2,3};
-    // posP: position of "positions"
-    // posN: position of "normals"
-    // posE: position of "elements"
-    // posTC: position of "texCoord"
-    for(int i=0,posP=0,posN=0,posE=0,posTC=0;i<railTie.count;i++){
-        // calculate distance from the begining, which is (i+0.5)*space
-        float distance=(1.0f*i)*railTie.space+railTie.space*0.5f;
-        // calculate the position using binary search
-        int cnt=lower_bound(pointDistance.begin(),pointDistance.end(),distance)-pointDistance.begin();
-        // Get the center of the rail tie using interpolation
-        float ratio=(distance-pointDistance[cnt])/(pointDistance[cnt+1]-pointDistance[cnt]);
-        glm::vec3 pCenter=splinePoints[cnt]+ratio*(splinePoints[cnt+1]-splinePoints[cnt]);
-        pCenter-=(0.5f*rail.heightT+0.5f*railTie.height)*splineNormal[cnt];
-        // Fill in the position,normal,tex coordinate, elements
-        glm::vec3 p[14];
-        for(int j=0;j<14;j++){
-            p[j]=pCenter+dxyPos[j][0]*splineBinormal[cnt]+dxyPos[j][1]*splineNormal[cnt]+dxyPos[j][2]*splineTangent[cnt];
-        }
-        for(int j=0;j<6;j++){
-            glm::vec3 normal=glm::cross(p[dxyRec[j][2]]-p[dxyRec[j][1]],p[dxyRec[j][0]]-p[dxyRec[j][1]]);
-            for(int k1=0;k1<4;k1++){
-                int tmp=dxyRec[j][k1];
-                for(int k2=0;k2<3;k2++){
-                    positions[posP++]=p[tmp][k2];
-                    normals[posN++]=normal[k2];
-                }
-                texCoord[posTC++]=dxyTC[tmp][0];
-                texCoord[posTC++]=dxyTC[tmp][1];
-            }
-            for(int k=0;k<6;k++){
-                elements[posE++]=i*24+j*4+dxyTri[k];
-            }
-        }
-    }
+    //// pos: position of "positions","normals"
+    //// posE: position of "elements"
+    //// posTC: position of "texCoord"
+    //for (int i = 0, pos = 0, posE = 0, posTC = 0; i < numVerticesSpline - 1; i++) {
+    //    glm::vec3 cur[4];
+    //    glm::vec3 p1, p2;
+    //    // Left T
+    //    for (int j = 0; j < 8; j++) {
+    //        p1 = splinePoints[i] - 0.5f * rail.width * splineBinormal[i];
+    //        p2 = splinePoints[i + 1] - 0.5f * rail.width * splineBinormal[i + 1];
+    //        cur[0] = p1 + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i];
+    //        cur[1] = p2 + dxyPoint[j][0] * splineBinormal[i + 1] + dxyPoint[j][1] * splineNormal[i + 1];
+    //        cur[2] = p2 + dxyPoint[j + 1][0] * splineBinormal[i + 1] + dxyPoint[j + 1][1] * splineNormal[i + 1];
+    //        cur[3] = p1 + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i];
+    //        glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
+    //        for (int k1 = 0; k1 < 4; k1++) {
+    //            for (int k2 = 0; k2 < 3; k2++, pos++) {
+    //                positions[pos] = cur[k1][k2];
+    //                normals[pos] = normal[k2];
+    //            }
+    //        }
+    //        for (int k = 0; k < 4; k++) {
+    //            texCoord[posTC++] = dxyCoord[k][0];
+    //            texCoord[posTC++] = dxyCoord[k][1];
+    //        }
+    //        int st = i * 64 + j * 4;
+    //        for (int k = 0; k < 6; k++) {
+    //            elements[posE++] = st + dxyElement[k];
+    //        }
+    //    }
+    //    // Right T
+    //    for (int j = 0; j < 8; j++) {
+    //        p1 = splinePoints[i] + 0.5f * rail.width * splineBinormal[i];
+    //        p2 = splinePoints[i + 1] + 0.5f * rail.width * splineBinormal[i + 1];
+    //        cur[0] = p1 + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i];
+    //        cur[1] = p2 + dxyPoint[j][0] * splineBinormal[i + 1] + dxyPoint[j][1] * splineNormal[i + 1];
+    //        cur[2] = p2 + dxyPoint[j + 1][0] * splineBinormal[i + 1] + dxyPoint[j + 1][1] * splineNormal[i + 1];
+    //        cur[3] = p1 + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i];
+    //        glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
+    //        // Set positions and normals
+    //        for (int k1 = 0; k1 < 4; k1++) {
+    //            for (int k2 = 0; k2 < 3; k2++) {
+    //                positions[pos] = cur[k1][k2];
+    //                normals[pos] = normal[k2];
+    //                pos++;
+    //            }
+    //        }
+    //        // Set elements
+    //        int st = i * 64 + 32 + j * 4;
+    //        for (int k = 0; k < 6; k++) {
+    //            elements[posE++] = st + dxyElement[k];
+    //        }
+    //    }
+    //}
 
-    railTie.vao = new VAO();
-    railTie.vao->Bind();
+    //rail.vao = new VAO();
+    //rail.vao->Bind();
 
-    railTie.vboVertices = new VBO(railTie.numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of rail point
-    railTie.vboNormals = new VBO(railTie.numVertices, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of rail point
-    railTie.vboTexCoord = new VBO(railTie.numVertices, 2, texCoord, GL_STATIC_DRAW); // 2 values per position, usinng number of rail point
+    //rail.vboVertices = new VBO(rail.numVertices, 3, positions, GL_STATIC_DRAW); // 3 values per position, usinng number of rail point
+    //rail.vboNormals = new VBO(rail.numVertices, 3, normals, GL_STATIC_DRAW); // 3 values per position, usinng number of rail point
+    //rail.vboTexCoord = new VBO(rail.numVertices, 2, texCoord, GL_STATIC_DRAW); // 2 values per position, usinng number of rail point
 
-    railTie.vao->ConnectPipelineProgramAndVBOAndShaderVariable(railTie.pipelineProgram, railTie.vboVertices, "position");
-    railTie.vao->ConnectPipelineProgramAndVBOAndShaderVariable(railTie.pipelineProgram, railTie.vboNormals, "normal");
-    railTie.vao->ConnectPipelineProgramAndVBOAndShaderVariable(railTie.pipelineProgram, railTie.vboTexCoord, "texCoord");
-    railTie.ebo = new EBO(railTie.numElements, elements, GL_STATIC_DRAW); //Bind the EBO
-    glGenTextures(1, &railTie.texHandle);
-    initTexture("texture/wood.jpg", railTie.texHandle);
-    free(positions);
-    free(elements);
-    free(texCoord);
+    //rail.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rail.pipelineProgram, rail.vboVertices, "position");
+    //rail.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rail.pipelineProgram, rail.vboNormals, "normal");
+    //rail.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rail.pipelineProgram, rail.vboTexCoord, "texCoord");
+    //rail.ebo = new EBO(rail.numElements, elements, GL_STATIC_DRAW); //Bind the EBO
+    //glGenTextures(1, &rail.texHandle);
+    //initTexture("metal.jpg", rail.texHandle);
+    //free(positions);
+    //free(elements);
+    //free(texCoord);
 }
 
 // Initialize the ground
@@ -1127,8 +1121,8 @@ void initSkybox() {
     }
     cout << "Successfully built the pipeline program SkyBox." << endl;
 
-    skyBox.numVertices =14;
-    skyBox.numElements =30;
+    skyBox.numVertices =30;
+    skyBox.numElements = skyBox.numVertices;
     float width = 150.0f, tall = 0.0f;
     float positions[42] = { width,width + tall,-width,width,width + tall,width,
         width,tall+width,-width,-width,tall + width,-width,-width,tall + width,width,width,tall + width,width,width,tall + width,-width,
@@ -1148,8 +1142,8 @@ void initSkybox() {
 
     skyBox.vao = new VAO();
     skyBox.vao->Bind();
-    skyBox.vboVertices = new VBO(skyBox.numVertices, 3, positions, GL_STATIC_DRAW);
-    skyBox.vboTexCoord = new VBO(skyBox.numVertices, 2, texCoord, GL_STATIC_DRAW);
+    skyBox.vboVertices = new VBO(14, 3, positions, GL_STATIC_DRAW);
+    skyBox.vboTexCoord = new VBO(14, 2, texCoord, GL_STATIC_DRAW);
 
     skyBox.ebo = new EBO(skyBox.numElements, elements, GL_STATIC_DRAW);
     skyBox.vao->ConnectPipelineProgramAndVBOAndShaderVariable(skyBox.pipelineProgram, skyBox.vboVertices, "position");
@@ -1157,6 +1151,7 @@ void initSkybox() {
     glGenTextures(1, &skyBox.texHandle);
     initTexture("texture/skyBoxDessert.jpg", skyBox.texHandle);
 }
+
 
 // Initialize the roller coaster status and camera status
 void setDefaultRollerCamera(){
@@ -1178,24 +1173,6 @@ void initScene(int argc, char* argv[])
 
     // Enable z-buffering (i.e., hidden surface removal using the z-buffer algorithm).
     glEnable(GL_DEPTH_TEST);
-
-    // Set light property
-    sunLight.La=glm::vec4(1.0f,1.0f,1.0f,1.0f); 
-    sunLight.Ld=glm::vec4(1.0f,1.0f,1.0f,1.0f);
-    sunLight.Ls=glm::vec4(1.0f,1.0f,1.0f,1.0f);
-    sunLight.lightDirection=glm::vec3(0.0f,1.0f,0.0f); // Suppose the sun is far away
-
-    // Wood material
-    wood.ka=glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
-    wood.kd=glm::vec4(0.5f, 0.5f, 0.5f, 1.0f); // mesh diffuse
-    wood.ks=glm::vec4(0.3f, 0.3f, 0.3f, 1.0f); // mesh specular
-    wood.alpha=1.0f; // shininess
-
-    // Metal material
-    metal.ka=glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
-    metal.kd=glm::vec4(0.4f, 0.4f, 0.4f, 1.0f); // mesh diffuse
-    metal.ks=glm::vec4(0.9f, 0.9f, 0.9f, 1.0f); // mesh specular
-    metal.alpha=15.0f; // shininess
 
     initSpline();
 

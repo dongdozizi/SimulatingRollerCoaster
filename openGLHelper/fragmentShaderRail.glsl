@@ -27,8 +27,8 @@ void main(){
 	float d = max(dot(viewLightDirection, viewNormal), 0.0f);
 	float s = max(dot(reflectDir, eyedir), 0.0f);
 	// compute the final color
+	//c=vec4(viewNormal,1.0);
 	c = ka * La + d * kd * Ld + pow(s, alpha) * ks * Ls;
-
 	// Add texture
 	c=c*texture(textureImg,coord);
 }
