@@ -55,7 +55,7 @@ CONTROL_STATE controlState = ROTATE;
 // Catmull-Rom Spline Matrix
 glm::mat4 catmullMatrix;
 double catmullS = 0.5;
-double maxLength = 0.002; // The maximum length for drawing lines in Spline
+double maxLength = 0.004; // The maximum length for drawing lines in Spline
 vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
@@ -133,8 +133,8 @@ struct Rail : ThreeDimensionObject {
 
 // Rail tie properties
 struct RailTie: ThreeDimensionObject{
-    float height=0.015; // Height of each cuboid
-    float width=0.04; // Width of each cuboid
+    float height=0.015f; // Height of each cuboid
+    float width=0.04f; // Width of each cuboid
     float length=0.12f; // Length of each cuboid
     float space=0.1f; // Space between each cuboid
     int count; // The count of cuboid
@@ -895,6 +895,8 @@ void initRailStandardDoubleT() {
         }
     }
 
+    cout<<"There are total "<<rail.numVertices<<" vertices, "<<rail.numElements<<" elements in double-T rail\n";
+
     rail.vao = new VAO();
     rail.vao->Bind();
 
@@ -1105,7 +1107,9 @@ void initRailTie() {
         }
         addCuboid(p, positions, normals, texCoord, elements);;
     }
- 
+
+    cout<<"There are total "<<railTie.numVertices<<" vertices, "<<railTie.numElements<<" elements in rail tie\n";
+
     railTie.vao = new VAO();
     railTie.vao->Bind();
 
@@ -1222,7 +1226,7 @@ void initRailSupport() {
             }
             minHeight = max(minHeight, railSupport.yMax[j]+0.5f*rail.width);
         }
-        railSupport.supportCount[1][i] = floor((railSupport.yMid[i] - railSupport.heightBase-ground.height) / railSupport.heightBetween);
+        railSupport.supportCount[1][i] = floor((railSupport.yMid[i]-0.5f*rail.width - railSupport.heightBase-ground.height) / railSupport.heightBetween);
         railSupport.supportCount[0][i] = ceil((minHeight-railSupport.heightBase - ground.height)/railSupport.heightBetween);
         if (railSupport.supportCount[0][i] > railSupport.supportCount[1][i]) {
             railSupport.supportCount[0][i] = railSupport.supportCount[1][i] = -1;
@@ -1280,40 +1284,10 @@ void initRailSupport() {
 
     }
 
-    //float dxyTC[4][2] = { 0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f };
-    //int dxyP[4][2] = { 0,2,2,4,1,3,3,5 };
-    //int dxyE[6] = { 0,1,2,0,2,3 };
-    //// Generate support between slice
-    //for (int i = 0; i < railSupport.count; i++) {
-    //    for (int j = 0; j < 4; j++) {
-    //        glm::vec3 p[4];
-    //        p[0] = p[1] = railSupport.hexagon[i][dxyP[j][0]];
-    //        p[2] = p[3] = railSupport.hexagon[i][dxyP[j][1]];
-    //        if (railSupport.supportCount[0][i] == 0) {
-    //            p[0].y = p[3].y = ground.height;
-    //        }
-    //        else {
-    //            p[0].y = p[3].y = ground.height+railSupport.heightBase+railSupport.heightBetween*railSupport.supportCount[0][i];
-    //        }
-    //        p[1].y = p[2].y = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[1][i];
-    //        glm::vec3 normal = glm::normalize(glm::cross(p[1] - p[0], p[3] - p[0]));
-    //        for (int k1 = 0; k1 < 4; k1++) {
-    //            for (int k2 = 0; k2 < 3; k2++) {
-    //                positions.push_back(p[k1][k2]);
-    //                normals.push_back(normal[k2]);
-    //            }
-    //            texCoord.push_back(dxyTC[k1][0]);
-    //            texCoord.push_back(dxyTC[k1][1]);
-    //        }
-    //        for (int k = 0; k < 6; k++) {
-    //            elements.push_back(i * 16 + j * 4 + dxyE[k]);
-    //        }
-    //    }
-    //}
-
     railSupport.numVertices = positions.size() / 3;
     railSupport.numElements = elements.size();
-    cout << railSupport.numVertices << " " << railSupport.numElements << "\n";
+
+    cout<<"There are total "<<railSupport.numVertices<<" vertices, "<<railSupport.numElements<<" elements in rail support\n";
 
     railSupport.vao = new VAO();
     railSupport.vao->Bind();
