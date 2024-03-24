@@ -62,17 +62,17 @@ int screenShotCounter = 0;
 int renderType = 1;
 bool enableCameraMov = false; // true when enable moving camera
 
-float lastTime=0.0; // last time render the window
-float rollerMinSpeed=5.0; // minimum speed when start the roller coaster
-float rollerSpeed=0.0; // speed of roller coaster (per second not per frame)
+float lastTime = 0.0; // last time render the window
+float rollerMinSpeed = 5.0; // minimum speed when start the roller coaster
+float rollerSpeed = 0.0; // speed of roller coaster (per second not per frame)
 float rollerU = 0.0; // Initial
 glm::vec3 rollerPos; // position of rollercoaster
 glm::vec3 rollerTangent; // tangent vector
 glm::vec3 rollerBinormal; // binormal vector
 glm::vec3 rollerNormal; // normal vector
 
-float camMaxSpeed=2.0; // minimum speed when moving camera (per second not per frame)
-glm::vec2 camSpeed(0.0f,0.0f); // Speed of camera when enable moving camera
+float camMaxSpeed = 2.0; // minimum speed when moving camera (per second not per frame)
+glm::vec2 camSpeed(0.0f, 0.0f); // Speed of camera when enable moving camera
 glm::vec3 cameraEye; // camera position
 glm::vec3 cameraFocus; // focus vector
 glm::vec3 cameraUp; // up vector, also normal vector for roller coaster, when enable moving camera it is (0,1,0)
@@ -96,7 +96,7 @@ char windowTitle[512] = "CSCI 420 Homework 2";
 OpenGLMatrix matrix;
 
 // Light property
-struct Light{
+struct Light {
     glm::vec4 La; // light ambient
     glm::vec4 Ld; // light diffuse
     glm::vec4 Ls; // light specular
@@ -104,15 +104,15 @@ struct Light{
 }sunLight;
 
 
-struct Material{
+struct Material {
     glm::vec4 ka; // Mesh ambient
     glm::vec4 kd; // Mesh diffuse
     glm::vec4 ks; // Mesh specular
     float alpha; // Shininess
-}metal,wood;
+}metal, wood;
 
 // 3D object class
-struct ThreeDimensionObject{
+struct ThreeDimensionObject {
     PipelineProgram* pipelineProgram = nullptr; // pipeline program
     int numVertices; // number of vertices
     int numElements; // number of elements
@@ -132,38 +132,49 @@ struct Rail : ThreeDimensionObject {
 }rail;
 
 // Rail tie properties
-struct RailTie: ThreeDimensionObject{
-    float height=0.015f; // Height of each cuboid
-    float width=0.04f; // Width of each cuboid
-    float length=0.12f; // Length of each cuboid
-    float space=0.1f; // Space between each cuboid
+struct RailTie : ThreeDimensionObject {
+    float height = 0.015f; // Height of each cuboid
+    float width = 0.04f; // Width of each cuboid
+    float length = 0.12f; // Length of each cuboid
+    float space = 0.1f; // Space between each cuboid
     int count; // The count of cuboid
 }railTie;
 
 // Rail support properties
 struct RailSupport : ThreeDimensionObject {
-    float space = 0.2f; // The space between each support
+    float space = 0.5f; // The space between each support
     float heightBase = 0.1f; // The height for base
-    float heightBetween = 0.15f; // The height between each support
-    float lengthSide=0.02f; // The length of each cuboid
-    float width = 0.4f;
+    float heightBetween = 0.3f; // The height between each support
+    float lengthSide = 0.02f; // The length of each cuboid
+    float width = 0.5f;
     int count; // The number of support
     vector<vector<glm::vec3>> hexagon; //The hexagon of each slice of support
     vector<glm::vec3> tangent, binormal, points; // The points, tangent,binormal of the support structure
     vector<float> yMin, yMid, yMax; // The highest and the lowest of each hexagon
     vector<int> supportCount[2]; //supportCount[0][i] is the lowest support, supportCount[1][i] is the highest support
-    glm::vec3 upVec=glm::vec3(0.0f, 1.0f, 0.0f); // The up vector
+    glm::vec3 upVec = glm::vec3(0.0f, 1.0f, 0.0f); // The up vector
 }railSupport;
+
+struct RollerCoaster {
+    ThreeDimensionObject head;
+    vector<ThreeDimensionObject> body;
+    float height;
+    float length;
+}rollerCoaster;
 
 // Ground properties
 struct Ground : ThreeDimensionObject {
-    float height=-1.0f;
-    float width=200.0f;
+    float height = -1.0f;
+    float width = 200.0f;
     float length = 200.0f;
 }ground;
 
 // Skybox properties
-ThreeDimensionObject skyBox;
+struct SkyBox : ThreeDimensionObject{
+    float height = -1.0f;
+    float width = 200.0f;
+    float length = 200.0f;
+}skyBox;
 
 // Spline property
 int numVerticesSpline; // number of points generated
@@ -331,7 +342,7 @@ void idleFunc()
 
     // Notify GLUT that it should call displayFunc.
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
-    
+
     double timeInterval = currentTime - lastTimeSave;
     if (timeInterval > 0.1f) {
         cout << "Current time is : " << currentTime << "\n";
@@ -509,7 +520,7 @@ void mouseButtonFunc(int button, int state, int x, int y)
     mousePos[1] = y;
 }
 
-void keyboardFunc(unsigned char key, int x, int y){
+void keyboardFunc(unsigned char key, int x, int y) {
     switch (key)
     {
     case 27: // ESC key
@@ -534,20 +545,20 @@ void keyboardFunc(unsigned char key, int x, int y){
 
     case 'v': //Enable Moving the camera
         camSpeed[0] = camSpeed[1] = 0.0;
-        if (enableCameraMov){
-            cameraFocus=rollerTangent;
+        if (enableCameraMov) {
+            cameraFocus = rollerTangent;
             enableCameraMov = false;
         }
-        else{
-            cameraFocus=glm::vec3(-1.0f,0.0f,0.0f);
+        else {
+            cameraFocus = glm::vec3(-1.0f, 0.0f, 0.0f);
             cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
             enableCameraMov = true;
         }
         break;
 
     case ' ': // Start or Stop the roller coaster
-        if(rollerSpeed>0.0) rollerSpeed=0.0;
-        else rollerSpeed=rollerMinSpeed;
+        if (rollerSpeed > 0.0) rollerSpeed = 0.0;
+        else rollerSpeed = rollerMinSpeed;
         break;
 
     case 'x':
@@ -558,32 +569,32 @@ void keyboardFunc(unsigned char key, int x, int y){
     }
 }
 
-void modifyFocusAndCamera(float timeInterval,glm::vec3 cameraUp) {
-    
+void modifyFocusAndCamera(float timeInterval, glm::vec3 cameraUp) {
+
     // Moving the camera
-    if(enableCameraMov){
-        glm::vec3 verticalVec(-cameraFocus[2],0,cameraFocus[0]);
-        cameraEye+=camMaxSpeed*timeInterval*(camSpeed[0]*cameraFocus+camSpeed[1]*verticalVec);
+    if (enableCameraMov) {
+        glm::vec3 verticalVec(-cameraFocus[2], 0, cameraFocus[0]);
+        cameraEye += camMaxSpeed * timeInterval * (camSpeed[0] * cameraFocus + camSpeed[1] * verticalVec);
     }
     glm::mat4 transformMat(1.0f);
-    glm::vec3 normal=glm::cross(cameraUp,cameraFocus);
+    glm::vec3 normal = glm::cross(cameraUp, cameraFocus);
 
-    transformMat=transformMat*glm::rotate(glm::radians(focusRotate[0]),normal);
+    transformMat = transformMat * glm::rotate(glm::radians(focusRotate[0]), normal);
     transformMat = transformMat * glm::rotate(glm::radians(focusRotate[1]), -cameraUp);
     focusRotate[0] = focusRotate[1] = 0.0f;
-    
+
     // Multiply the rotate matrix with the focus vector to get the rotated vector
-    cameraFocus=glm::vec3(transformMat*glm::vec4(cameraFocus,0.0f));
+    cameraFocus = glm::vec3(transformMat * glm::vec4(cameraFocus, 0.0f));
 }
 
 void calculateNewCameraRoller() {
 
     rollerU = rollerU + 0.001 * rollerSpeed;
-    if (rollerU >= 1.0f*spline.numControlPoints) {
+    if (rollerU >= 1.0f * spline.numControlPoints) {
         rollerU -= 1.0f * spline.numControlPoints;
     }
     int splineCount = floor(rollerU);
-    float tmpU = rollerU - 1.0f*splineCount;
+    float tmpU = rollerU - 1.0f * splineCount;
 
     // Use binary search to find the next u position
     int l = uPosVec[splineCount], r = uPosVec[splineCount + 1];
@@ -591,8 +602,8 @@ void calculateNewCameraRoller() {
 
     // Interpolate the position
     glm::vec3 rollerPosNew;
-    glm::vec4 uCalc(tmpU*tmpU*tmpU,tmpU*tmpU,tmpU,1);
-    rollerPosNew=mulMatrix[splineCount]*uCalc;
+    glm::vec4 uCalc(tmpU * tmpU * tmpU, tmpU * tmpU, tmpU, 1);
+    rollerPosNew = mulMatrix[splineCount] * uCalc;
 
     glm::vec3 rollerTangentNew = splineTangent[uPos];
     glm::vec3 rollerNormalNew = splineNormal[uPos];
@@ -601,10 +612,10 @@ void calculateNewCameraRoller() {
     if (!enableCameraMov) {
         cameraUp = rollerNormalNew;
         cameraEye = rollerPosNew + 0.1f * cameraUp;
-        cameraFocus = glm::dot(cameraFocus,rollerTangent)*rollerTangentNew+
-            glm::dot(cameraFocus,rollerNormal)*rollerNormalNew+
-            glm::dot(cameraFocus,rollerBinormal)*rollerBinormalNew;
-        cameraFocus=glm::normalize(cameraFocus);
+        cameraFocus = glm::dot(cameraFocus, rollerTangent) * rollerTangentNew +
+            glm::dot(cameraFocus, rollerNormal) * rollerNormalNew +
+            glm::dot(cameraFocus, rollerBinormal) * rollerBinormalNew;
+        cameraFocus = glm::normalize(cameraFocus);
     }
     rollerPos = rollerPosNew;
     rollerTangent = rollerTangentNew;
@@ -612,7 +623,7 @@ void calculateNewCameraRoller() {
     rollerBinormal = rollerBinormalNew;
 }
 
-void drawWithLight(ThreeDimensionObject object,Light light,Material material){
+void drawWithLight(ThreeDimensionObject object, Light light, Material material) {
     // Get modelView matrix
     float modelViewMatrix[16];
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
@@ -650,7 +661,28 @@ void drawWithLight(ThreeDimensionObject object,Light light,Material material){
 
 }
 
-void drawWithoutLight(ThreeDimensionObject object){
+void displayFunc()
+{
+    // This function performs the actual rendering.
+
+    // Calculate the time interval and refresh the last time
+    float currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
+    float timeInterval = currentTime - lastTime;
+    lastTime = currentTime;
+
+    // First, clear the screen.
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    modifyFocusAndCamera(timeInterval, cameraUp);
+
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+    // Set up the camera position, focus point, and the up vector.
+    matrix.LoadIdentity();
+    // View
+    matrix.LookAt(cameraEye[0], cameraEye[1], cameraEye[2],
+        cameraEye[0] + cameraFocus[0], cameraEye[1] + cameraFocus[1], cameraEye[2] + cameraFocus[2],
+        cameraUp[0], cameraUp[1], cameraUp[2]);
+
     // Get modelView matrix
     float modelViewMatrix[16];
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
@@ -661,60 +693,37 @@ void drawWithoutLight(ThreeDimensionObject object){
     matrix.SetMatrixMode(OpenGLMatrix::Projection);
     matrix.GetMatrix(projectionMatrix);
 
-    // Get normal matrix
-    float normalMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetNormalMatrix(normalMatrix);
-
-    object.pipelineProgram->Bind();
-    object.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    object.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
-    object.vao->Bind();
+    // Draw ground
+    ground.pipelineProgram->Bind();
+    ground.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    ground.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    ground.vao->Bind();
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, object.texHandle);
-    glDrawElements(GL_TRIANGLES, object.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
-}
+    glBindTexture(GL_TEXTURE_2D, ground.texHandle);
+    glDrawElements(GL_TRIANGLES, ground.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
 
-void displayFunc()
-{
-    // This function performs the actual rendering.
+    // Draw skybox
+    skyBox.pipelineProgram->Bind();
+    skyBox.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    skyBox.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    skyBox.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, skyBox.texHandle);
+    glDrawElements(GL_TRIANGLES, skyBox.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
 
-    // Calculate the time interval and refresh the last time
-    float currentTime=glutGet(GLUT_ELAPSED_TIME) * 0.001;
-    float timeInterval=currentTime-lastTime;
-    lastTime=currentTime;
-
-    // First, clear the screen.
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    modifyFocusAndCamera(timeInterval,cameraUp);
-
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    // Set up the camera position, focus point, and the up vector.
-    matrix.LoadIdentity();
-    // View
-    matrix.LookAt(cameraEye[0], cameraEye[1], cameraEye[2],
-                  cameraEye[0] + cameraFocus[0], cameraEye[1] + cameraFocus[1], cameraEye[2] + cameraFocus[2],
-                  cameraUp[0], cameraUp[1], cameraUp[2]);
 
     // Draw rail
-    drawWithLight(rail,sunLight,metal);
+    drawWithLight(rail, sunLight, metal);
 
     // Draw rail tie;
-    drawWithLight(railTie,sunLight,wood);
+    drawWithLight(railTie, sunLight, wood);
 
     // Draw rail support;
     drawWithLight(railSupport, sunLight, wood);
 
-    // Draw ground
-    drawWithoutLight(ground);
-
-    // Draw skybox
-    drawWithoutLight(skyBox);
-
     // At the end, generate new u and other vector.
     calculateNewCameraRoller();
-    
+
     // Swap the double-buffers.
     glutSwapBuffers();
 }
@@ -729,7 +738,7 @@ void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4
     glm::vec3 x1 = multMatrix * vu1;
 
     // Calculate the square of the different between x0 and x1
-    double squareSum = glm::length2((x0-x1));
+    double squareSum = glm::length2((x0 - x1));
     if (squareSum > maxLengthSquare) {
         double umid = (u0 + u1) / 2.0;
         subdivideDrawSpline(u0, umid, maxLengthSquare, multMatrix, depth + 1);
@@ -763,7 +772,7 @@ void initSpline() {
         uPosVec.push_back(splinePoints.size()); // add the current size of spline point.
         subdivideDrawSpline(0.0, 1.0, maxLength * maxLength, mulMatrix[i], 0);
     }
-    
+
     // To make the whole line circular, add the first point to the last.
     mulMatrix.push_back(mulMatrix[0]);
     uPosVec.push_back(splinePoints.size());
@@ -782,11 +791,11 @@ void initSpline() {
     splineTangent[0] = glm::normalize(glm::vec3(mulMatrix[0] * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
     splineBinormal[0] = glm::normalize(glm::cross(splineTangent[0], glm::vec3(0.0f, 1.0f, 0.0f))); // Initially looking up
     splineNormal[0] = glm::normalize(glm::cross(splineBinormal[0], splineTangent[0]));
-    pointDistance[0]=0.0f;
+    pointDistance[0] = 0.0f;
     pointDisHorizon[0] = 0.0f;
 
     // Calculate the following tangent, normal, binormal, distance by camera movement
-    for (int i = 1,splineCount=0; i < splinePoints.size(); i++) {
+    for (int i = 1, splineCount = 0; i < splinePoints.size(); i++) {
         if (uVec[i] == 0.0f) {
             splineCount++;
         }
@@ -794,7 +803,7 @@ void initSpline() {
         splineNormal[i] = glm::normalize(glm::cross(splineBinormal[i - 1], splineTangent[i]));
         splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], splineNormal[i]));
         pointDistance[i] = pointDistance[i - 1] + glm::distance(splinePoints[i - 1], splinePoints[i]);
-        pointDisHorizon[i] = pointDisHorizon[i - 1] + glm::distance(glm::vec2(splinePoints[i-1].x,splinePoints[i-1].z), glm::vec2(splinePoints[i].x,splinePoints[i].z));
+        pointDisHorizon[i] = pointDisHorizon[i - 1] + glm::distance(glm::vec2(splinePoints[i - 1].x, splinePoints[i - 1].z), glm::vec2(splinePoints[i].x, splinePoints[i].z));
     }
 
     splineLength = pointDistance[pointDistance.size() - 1];
@@ -843,7 +852,7 @@ void initRailStandardDoubleT() {
     // pos: position of "positions","normals"
     // posE: position of "elements"
     // posTC: position of "texCoord"
-    for (int i = 0, pos = 0, posE = 0, posTC=0; i < numVerticesSpline - 1; i++) {
+    for (int i = 0, pos = 0, posE = 0, posTC = 0; i < numVerticesSpline - 1; i++) {
         glm::vec3 cur[4];
         glm::vec3 p1, p2;
         // Left T
@@ -856,7 +865,7 @@ void initRailStandardDoubleT() {
             cur[3] = p1 + dxyPoint[j + 1][0] * splineBinormal[i] + dxyPoint[j + 1][1] * splineNormal[i];
             glm::vec3 normal = glm::normalize(glm::cross(cur[1] - cur[0], cur[3] - cur[0]));
             for (int k1 = 0; k1 < 4; k1++) {
-                for (int k2 = 0; k2 < 3; k2++,pos++) {
+                for (int k2 = 0; k2 < 3; k2++, pos++) {
                     positions[pos] = cur[k1][k2];
                     normals[pos] = normal[k2];
                 }
@@ -895,7 +904,7 @@ void initRailStandardDoubleT() {
         }
     }
 
-    cout<<"There are total "<<rail.numVertices<<" vertices, "<<rail.numElements<<" elements in double-T rail\n";
+    cout << "There are total " << rail.numVertices << " vertices, " << rail.numElements << " elements in double-T rail\n";
 
     rail.vao = new VAO();
     rail.vao->Bind();
@@ -918,9 +927,9 @@ void initRailStandardDoubleT() {
 // Initialize the rail with pseudo normal
 void initRailPseudo() {
 
-    rail.pipelineProgram= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    rail.pipelineProgram = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
     // Load and set up the pipeline program, including its shaders.
-    if (rail.pipelineProgram->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0){
+    if (rail.pipelineProgram->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0) {
         cout << "Failed to build the pipeline program Rail." << endl;
         throw 1;
     }
@@ -934,13 +943,13 @@ void initRailPseudo() {
 
     // Get the positions of all vertex
     int pos = 0;
-    float dxyPoint[4][2] = { 0.5f*rail.widthT,0.5f * rail.heightT,
+    float dxyPoint[4][2] = { 0.5f * rail.widthT,0.5f * rail.heightT,
         -0.5f * rail.widthT,0.5f * rail.heightT,
         -0.5f * rail.widthT,-0.5f * rail.heightT,
         0.5f * rail.widthT,-0.5f * rail.heightT };
-    for (int i = 0; i < numVerticesSpline;i++){
+    for (int i = 0; i < numVerticesSpline; i++) {
         for (int j = 0; j < 4; j++) {
-            glm::vec3 cur = splinePoints[i] + dxyPoint[j][0] * splineBinormal[i]+ dxyPoint[j][1]*splineNormal[i];
+            glm::vec3 cur = splinePoints[i] + dxyPoint[j][0] * splineBinormal[i] + dxyPoint[j][1] * splineNormal[i];
             for (int k = 0; k < 3; k++) {
                 positions[pos++] = cur[k];
             }
@@ -992,7 +1001,7 @@ void initRailPseudo() {
 
     // Get the element array
     pos = 0;
-    for (int i = 0; i < numVerticesSpline-1; i++){
+    for (int i = 0; i < numVerticesSpline - 1; i++) {
         for (int j = 0; j < 8; j++) {
             for (int k = 0; k < 3; k++) {
                 elements[pos++] = i * 4 + dxyNormal[j][k];
@@ -1021,11 +1030,11 @@ void initRailPseudo() {
 *   0--------1  |
 *   |  7-----|--6
 *   | /      | /
-*   |/       |/  
+*   |/       |/
 *   4--------5
 */
 void addCuboid(vector<glm::vec3>& cube, vector<float>& positions, vector<float>& normals, vector<float>& texCoord, vector<unsigned int>& elements) {
-    unsigned int dxyElem[14] = {0,1,
+    unsigned int dxyElem[14] = { 0,1,
         0,3,2,1,0,
         4,7,6,5,4,
         4,5
@@ -1079,7 +1088,7 @@ void initRailTie() {
     railTie.numVertices = railTie.count * 24;
     railTie.numElements = railTie.count * 36;
 
-    cout<<"There are total "<<railTie.count<<" counts of rail tie, "<<" the space between them is "<<railTie.space<<"\n";
+    cout << "There are total " << railTie.count << " counts of rail tie, " << " the space between them is " << railTie.space << "\n";
 
     vector<float> positions, normals, texCoord;
     vector<unsigned int> elements;
@@ -1094,23 +1103,23 @@ void initRailTie() {
 
     for (int i = 0; i < railTie.count; i++) {
         // calculate distance from the begining, which is (i+0.5)*space
-        float distance=(1.0f*i)*railTie.space+railTie.space*0.5f;
+        float distance = (1.0f * i) * railTie.space + railTie.space * 0.5f;
         // calculate the position using binary search
-        int cnt=lower_bound(pointDistance.begin(),pointDistance.end(),distance)-pointDistance.begin();
+        int cnt = lower_bound(pointDistance.begin(), pointDistance.end(), distance) - pointDistance.begin();
         // Get the center of the rail tie using interpolation
-        float ratio=(distance-pointDistance[cnt])/(pointDistance[cnt+1]-pointDistance[cnt]);
-        glm::vec3 pCenter=splinePoints[cnt]+ratio*(splinePoints[cnt+1]-splinePoints[cnt]);
-        pCenter-=(0.5f*rail.heightT+0.5f*railTie.height)*splineNormal[cnt];
+        float ratio = (distance - pointDistance[cnt]) / (pointDistance[cnt + 1] - pointDistance[cnt]);
+        glm::vec3 pCenter = splinePoints[cnt] + ratio * (splinePoints[cnt + 1] - splinePoints[cnt]);
+        pCenter -= (0.5f * rail.heightT + 0.5f * railTie.height) * splineNormal[cnt];
         // Fill in the position,normal,tex coordinate, elements
 
         vector<glm::vec3> p(8);
-        for(int j=0;j<8;j++){
-            p[j]=pCenter+dxyPos[j][0]*splineBinormal[cnt]+dxyPos[j][1]*splineNormal[cnt]-dxyPos[j][2]*splineTangent[cnt];
+        for (int j = 0; j < 8; j++) {
+            p[j] = pCenter + dxyPos[j][0] * splineBinormal[cnt] + dxyPos[j][1] * splineNormal[cnt] - dxyPos[j][2] * splineTangent[cnt];
         }
         addCuboid(p, positions, normals, texCoord, elements);;
     }
 
-    cout<<"There are total "<<railTie.numVertices<<" vertices, "<<railTie.numElements<<" elements in rail tie\n";
+    cout << "There are total " << railTie.numVertices << " vertices, " << railTie.numElements << " elements in rail tie\n";
 
     railTie.vao = new VAO();
     railTie.vao->Bind();
@@ -1127,7 +1136,7 @@ void initRailTie() {
     initTexture("texture/wood.jpg", railTie.texHandle);
 }
 
-// Initialize the rail tie
+// Initialize the rail support
 void initRailSupport() {
 
     railSupport.pipelineProgram = new PipelineProgram(); //Load and set up the pipeline program, including its shaders.
@@ -1179,7 +1188,7 @@ void initRailSupport() {
         }
 
         railSupport.points[i] = pCenterM;
-        railSupport.tangent[i] = glm::normalize(glm::cross(railSupport.upVec,binormalM));
+        railSupport.tangent[i] = glm::normalize(glm::cross(railSupport.upVec, binormalM));
         railSupport.binormal[i] = binormalM;
 
         railSupport.hexagon[i][0] = pCenterL - 0.5f * railSupport.width * binormalL;
@@ -1205,7 +1214,7 @@ void initRailSupport() {
         for (int j = 0; j < railSupport.count; j++) {
             bool isContinue = false;
             for (int k = -2; k <= 2; k++) {
-                if (j == (i + railSupport.count + k)%railSupport.count) {
+                if (j == (i + railSupport.count + k) % railSupport.count) {
                     isContinue = true;
                     break;
                 }
@@ -1233,10 +1242,10 @@ void initRailSupport() {
             if (railSupport.yMin[j] > railSupport.yMid[i]) {
                 continue;
             }
-            minHeight = max(minHeight, railSupport.yMax[j]+1.0f*rail.width);
+            minHeight = max(minHeight, railSupport.yMax[j] + 1.0f * rail.width);
         }
         railSupport.supportCount[1][i] = floor((min(railSupport.yMid[i], min(railSupport.yMid[i + 1], railSupport.yMid[(i + railSupport.count - 1) % railSupport.count])) - 1.0f * rail.width - railSupport.heightBase - ground.height) / railSupport.heightBetween);
-        railSupport.supportCount[0][i] = ceil((minHeight-railSupport.heightBase - ground.height)/railSupport.heightBetween);
+        railSupport.supportCount[0][i] = ceil((minHeight - railSupport.heightBase - ground.height) / railSupport.heightBetween);
         if (railSupport.supportCount[0][i] > railSupport.supportCount[1][i]) {
             railSupport.supportCount[0][i] = railSupport.supportCount[1][i] = -1;
         }
@@ -1244,13 +1253,13 @@ void initRailSupport() {
 
     vector<float> positions, normals, texCoord;
     vector<unsigned int> elements;
-    
+
     float dxyRect[4][2] = { -0.5f,0.5f,0.5f,0.5f,0.5f,-0.5f,-0.5f,-0.5f };
 
     // Generate each support slice
     // 
     // Generate the perpendicular
-    for (int i = 0; i < railSupport.count; i++) {    
+    for (int i = 0; i < railSupport.count; i++) {
         if (railSupport.supportCount[0][i] == -1) {
             continue;
         }
@@ -1304,7 +1313,7 @@ void initRailSupport() {
     // Generate the diagonal
     for (int i = 0; i < railSupport.count; i++) {
         vector<glm::vec3> p(8);
-        glm::vec3 pCenter;    
+        glm::vec3 pCenter;
         for (int j = railSupport.supportCount[0][i]; j < railSupport.supportCount[1][i]; j++) {
             // Left
             pCenter = railSupport.points[i];
@@ -1312,13 +1321,13 @@ void initRailSupport() {
             float y2 = ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j + 1.0f) - railSupport.lengthSide;
 
             p[0] = glm::vec3(railSupport.hexagon[i][2].x, y2, railSupport.hexagon[i][2].z) + 0.5f * railSupport.lengthSide * (railSupport.upVec - railSupport.tangent[i]);
-            p[1]= glm::vec3(pCenter.x, y1, pCenter.z) + 0.5f * railSupport.lengthSide * (railSupport.upVec - railSupport.tangent[i]);
+            p[1] = glm::vec3(pCenter.x, y1, pCenter.z) + 0.5f * railSupport.lengthSide * (railSupport.upVec - railSupport.tangent[i]);
             p[2] = glm::vec3(pCenter.x, y1, pCenter.z) + 0.5f * railSupport.lengthSide * (railSupport.upVec + railSupport.tangent[i]);
             p[3] = glm::vec3(railSupport.hexagon[i][2].x, y2, railSupport.hexagon[i][2].z) + 0.5f * railSupport.lengthSide * (railSupport.upVec + railSupport.tangent[i]);
             for (int k = 0; k < 4; k++) {
                 p[k + 4] = p[k] - railSupport.lengthSide * railSupport.upVec;
             }
-            addCuboid(p, positions, normals, texCoord, elements);
+            //addCuboid(p, positions, normals, texCoord, elements);
             // Right;
             p[0] = glm::vec3(pCenter.x, y1, pCenter.z) + 0.5f * railSupport.lengthSide * (railSupport.upVec - railSupport.tangent[i]);
             p[1] = glm::vec3(railSupport.hexagon[i][3].x, y2, railSupport.hexagon[i][3].z) + 0.5f * railSupport.lengthSide * (railSupport.upVec - railSupport.tangent[i]);
@@ -1327,7 +1336,7 @@ void initRailSupport() {
             for (int k = 0; k < 4; k++) {
                 p[k + 4] = p[k] - railSupport.lengthSide * railSupport.upVec;
             }
-            addCuboid(p, positions, normals, texCoord, elements);
+            //addCuboid(p, positions, normals, texCoord, elements);
         }
     }
 
@@ -1339,10 +1348,35 @@ void initRailSupport() {
         tmpP[0] = railSupport.hexagon[i][2] - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
         tmpP[1] = railSupport.hexagon[nex][2] - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
         // Left
-        for (int j = max(railSupport.supportCount[0][i],railSupport.supportCount[0][nex]); j <= min(railSupport.supportCount[1][i],railSupport.supportCount[1][nex]); j++) {
-            float y= ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j) + railSupport.lengthSide;
+        for (int j = max(railSupport.supportCount[0][i], railSupport.supportCount[0][nex]); j <= min(railSupport.supportCount[1][i], railSupport.supportCount[1][nex]); j++) {
+            float y = ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j) + railSupport.lengthSide;
             tmpP[0].y = y + 0.5f * railSupport.lengthSide;
             tmpP[1].y = y + 0.5f * railSupport.lengthSide;
+            p[0] = tmpP[0] - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[1] = tmpP[0] + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[2] = tmpP[1] + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            p[3] = tmpP[1] - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            for (int k = 0; k < 4; k++) {
+                p[k + 4] = p[k] - railSupport.lengthSide * railSupport.upVec;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+        }
+        // Left cross
+        for (int j = max(railSupport.supportCount[0][i], railSupport.supportCount[0][nex]); j < min(railSupport.supportCount[1][i], railSupport.supportCount[1][nex]); j++) {
+            float y1 = ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j) + railSupport.lengthSide;
+            float y2 = ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j + 1.0f) + railSupport.lengthSide;
+            tmpP[0].y = y1 + 0.5f * railSupport.lengthSide;
+            tmpP[1].y = y2 + 0.5f * railSupport.lengthSide;
+            p[0] = tmpP[0] - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[1] = tmpP[0] + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[2] = tmpP[1] + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            p[3] = tmpP[1] - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            for (int k = 0; k < 4; k++) {
+                p[k + 4] = p[k] - railSupport.lengthSide * railSupport.upVec;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+            tmpP[0].y = y2 + 0.5f * railSupport.lengthSide;
+            tmpP[1].y = y1 + 0.5f * railSupport.lengthSide;
             p[0] = tmpP[0] - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
             p[1] = tmpP[0] + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
             p[2] = tmpP[1] + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
@@ -1368,10 +1402,36 @@ void initRailSupport() {
             }
             addCuboid(p, positions, normals, texCoord, elements);
         }
+        // Right cross
+        for (int j = max(railSupport.supportCount[0][i], railSupport.supportCount[0][nex]); j < min(railSupport.supportCount[1][i], railSupport.supportCount[1][nex]); j++) {
+            float y1 = ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j) + railSupport.lengthSide;
+            float y2 = ground.height + railSupport.heightBase + railSupport.heightBetween * (1.0f * j + 1.0f) + railSupport.lengthSide;
+            tmpP[0].y = y1 + 0.5f * railSupport.lengthSide;
+            tmpP[1].y = y2 + 0.5f * railSupport.lengthSide;
+            p[0] = tmpP[0] - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[1] = tmpP[0] + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[2] = tmpP[1] + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            p[3] = tmpP[1] - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            for (int k = 0; k < 4; k++) {
+                p[k + 4] = p[k] - railSupport.lengthSide * railSupport.upVec;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+            tmpP[0].y = y2 + 0.5f * railSupport.lengthSide;
+            tmpP[1].y = y1 + 0.5f * railSupport.lengthSide;
+            p[0] = tmpP[0] - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[1] = tmpP[0] + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+            p[2] = tmpP[1] + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            p[3] = tmpP[1] - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+            for (int k = 0; k < 4; k++) {
+                p[k + 4] = p[k] - railSupport.lengthSide * railSupport.upVec;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+        }
     }
 
     // Generate the connection between support and rail 
     for (int i = 0; i < railSupport.count; i++) {
+        if (railSupport.supportCount[1][i] == -1) continue;
         float dM = (1.0f * i + 0.5f) * railSupport.space;
         int cntM = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM) - pointDisHorizon.begin();
         glm::vec3 pl = railSupport.points[i] - 0.5f * rail.width * splineBinormal[cntM];
@@ -1383,12 +1443,10 @@ void initRailSupport() {
         pCenter = railSupport.hexagon[i][2];
         float yLow, yHigh;
 
-        yHigh= max(pl.y, pr.y) + 0.5f * rail.width;
+        yHigh = max(pl.y, pr.y) + 1.0f * rail.width;
 
         if (splineNormal[cntM].y < 0.0f) {
-            dl.y = dr.y = max(pl.y, pr.y) + 0.5f * rail.width;
-            pl += 0.5f * rail.heightT * railSupport.upVec;
-            pr += 0.5f * rail.heightT * railSupport.upVec;
+            dl.y = dr.y = max(pl.y, pr.y) + 1.0f * rail.width;
             p[0] = dl - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
             p[1] = dr - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
             p[2] = dr + 0.5f * railSupport.lengthSide * railSupport.tangent[i];
@@ -1400,21 +1458,19 @@ void initRailSupport() {
             addCuboid(p, positions, normals, texCoord, elements);
 
             for (int j = 0; j < 4; j++) {
-                p[j] = p[j + 4] = pl + 0.5f*dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
-                p[j].y = dl.y;
+                p[j] = dr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j + 4] = pl + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
             }
             addCuboid(p, positions, normals, texCoord, elements);
 
             for (int j = 0; j < 4; j++) {
-                p[j] = p[j + 4] = pr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
-                p[j].y = dl.y;
+                p[j] = dl + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j + 4] = pr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
             }
             addCuboid(p, positions, normals, texCoord, elements);
         }
         else {
-            dl.y = dr.y = min(pl.y, pr.y) - 0.5f * rail.width;
-            pl -= 0.5f * rail.heightT * railSupport.upVec;
-            pr -= 0.5f * rail.heightT * railSupport.upVec;
+            dl.y = dr.y = min(pl.y, pr.y) - 1.0f * rail.width;
             p[0] = dl - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
             p[1] = dr - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
             p[2] = dr + 0.5f * railSupport.lengthSide * railSupport.tangent[i];
@@ -1426,18 +1482,17 @@ void initRailSupport() {
             addCuboid(p, positions, normals, texCoord, elements);
 
             for (int j = 0; j < 4; j++) {
-                p[j] = p[j + 4] = pl + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
-                p[j+4].y = dl.y;
+                p[j] = pl + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j + 4] = dl + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
             }
             addCuboid(p, positions, normals, texCoord, elements);
 
             for (int j = 0; j < 4; j++) {
-                p[j] = p[j + 4] = pr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
-                p[j+4].y = dl.y;
+                p[j] = pr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j + 4] = dr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
             }
             addCuboid(p, positions, normals, texCoord, elements);
         }
-
         yLow = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[1][i];
         pCenter = railSupport.hexagon[i][2];
         for (int j = 0; j < 4; j++) {
@@ -1455,10 +1510,50 @@ void initRailSupport() {
         addCuboid(p, positions, normals, texCoord, elements);
     }
 
+    // Generate the connection of the fence
+    for (int i = 0; i < railSupport.count; i++) {
+        float dM1 = (1.0f * i + 0.5f) * railSupport.space;
+        int cntM1 = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM1) - pointDisHorizon.begin();
+        glm::vec3 pl1 = railSupport.points[i] - 0.5f * rail.width * splineBinormal[cntM1];
+        glm::vec3 pr1 = railSupport.points[i] + 0.5f * rail.width * splineBinormal[cntM1];
+        float y1 = max(pl1.y, pr1.y) + 1.0f * rail.width;
+
+        int nex = (i + 1) % railSupport.count;
+        float dM2 = (1.0f * nex + 0.5f) * railSupport.space;
+        int cntM2 = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM2) - pointDisHorizon.begin();
+        glm::vec3 pl2 = railSupport.points[nex] - 0.5f * rail.width * splineBinormal[cntM2];
+        glm::vec3 pr2 = railSupport.points[nex] + 0.5f * rail.width * splineBinormal[cntM2];
+        float y2 = max(pl2.y, pr2.y) + 1.0f * rail.width;
+
+        // Left
+        vector<glm::vec3> p(8);
+        p[0] = glm::vec3(railSupport.hexagon[i][2].x, y1, railSupport.hexagon[i][2].z) - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+        p[1] = glm::vec3(railSupport.hexagon[i][2].x, y1, railSupport.hexagon[i][2].z) + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+        p[2] = glm::vec3(railSupport.hexagon[nex][2].x, y2, railSupport.hexagon[nex][2].z) + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+        p[3] = glm::vec3(railSupport.hexagon[nex][2].x, y2, railSupport.hexagon[nex][2].z) - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+        for (int j = 0; j < 4; j++) {
+            p[j + 4] = p[j];
+            p[j] += 1.0f * railSupport.lengthSide*railSupport.upVec;
+        }
+        addCuboid(p, positions, normals, texCoord, elements);
+
+        // Right
+        p[0] = glm::vec3(railSupport.hexagon[i][3].x, y1, railSupport.hexagon[i][3].z) - 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+        p[1] = glm::vec3(railSupport.hexagon[i][3].x, y1, railSupport.hexagon[i][3].z) + 0.5f * railSupport.lengthSide * railSupport.binormal[i];
+        p[2] = glm::vec3(railSupport.hexagon[nex][3].x, y2, railSupport.hexagon[nex][3].z) + 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+        p[3] = glm::vec3(railSupport.hexagon[nex][3].x, y2, railSupport.hexagon[nex][3].z) - 0.5f * railSupport.lengthSide * railSupport.binormal[nex];
+        for (int j = 0; j < 4; j++) {
+            p[j + 4] = p[j];
+            p[j] += 1.0f * railSupport.lengthSide * railSupport.upVec;
+        }
+        addCuboid(p, positions, normals, texCoord, elements);
+
+    }
+
     railSupport.numVertices = positions.size() / 3;
     railSupport.numElements = elements.size();
 
-    cout<<"There are total "<<railSupport.numVertices<<" vertices, "<<railSupport.numElements<<" elements in rail support\n";
+    cout << "There are total " << railSupport.numVertices << " vertices, " << railSupport.numElements << " elements in rail support\n";
 
     railSupport.vao = new VAO();
     railSupport.vao->Bind();
@@ -1475,21 +1570,25 @@ void initRailSupport() {
     initTexture("texture/wood.jpg", railSupport.texHandle);
 }
 
+// Init the roller coaster
+void initRollerCoaster() {
+
+}
 
 // Initialize the ground
-void initGround(){
+void initGround() {
 
-    ground.pipelineProgram= new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    ground.pipelineProgram = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
     // Load and set up the pipeline program, including its shaders.
-    if (ground.pipelineProgram->BuildShadersFromFiles(shaderBasePath, "vertexShaderGround.glsl", "fragmentShaderGround.glsl") != 0){
+    if (ground.pipelineProgram->BuildShadersFromFiles(shaderBasePath, "vertexShaderGround.glsl", "fragmentShaderGround.glsl") != 0) {
         cout << "Failed to build the pipeline program Ground." << endl;
         throw 1;
     }
     cout << "Successfully built the pipeline program Ground." << endl;
 
-    ground.numVertices=6;
+    ground.numVertices = 6;
     ground.numElements = ground.numVertices;
-    float texCoord[8]={0.0f,0.0f,100.0f,0.0f,100.0f,100.0f,0.0f,100.0f};
+    float texCoord[8] = { 0.0f,0.0f,30.0f,0.0f,30.0f,30.0f,0.0f,30.0f };
     float positions[12] = { -1.0f,1.0f,-1.0f,
         1.0f,1.0f,-1.0f,
         1.0f,1.0f,1.0f,
@@ -1500,18 +1599,18 @@ void initGround(){
         positions[i * 3 + 1] *= ground.height;
         positions[i * 3 + 2] *= ground.width;
     }
-    unsigned int elements[6]={0,1,2,0,2,3};
-    
-    ground.vao=new VAO();
-    ground.vao->Bind();
-    ground.vboVertices=new VBO(4, 3, positions, GL_STATIC_DRAW);
-    ground.vboTexCoord=new VBO(4, 2, texCoord, GL_STATIC_DRAW);
+    unsigned int elements[6] = { 0,1,2,0,2,3 };
 
-    ground.ebo=new EBO(ground.numElements,elements,GL_STATIC_DRAW);
+    ground.vao = new VAO();
+    ground.vao->Bind();
+    ground.vboVertices = new VBO(4, 3, positions, GL_STATIC_DRAW);
+    ground.vboTexCoord = new VBO(4, 2, texCoord, GL_STATIC_DRAW);
+
+    ground.ebo = new EBO(ground.numElements, elements, GL_STATIC_DRAW);
     ground.vao->ConnectPipelineProgramAndVBOAndShaderVariable(ground.pipelineProgram, ground.vboVertices, "position");
     ground.vao->ConnectPipelineProgramAndVBOAndShaderVariable(ground.pipelineProgram, ground.vboTexCoord, "texCoord");
-    glGenTextures(1,&ground.texHandle);
-    initTexture("texture/grassGround.jpg", ground.texHandle);
+    glGenTextures(1, &ground.texHandle);
+    initTexture("texture/moonGround.jpg", ground.texHandle);
 }
 
 void initSkybox() {
@@ -1524,12 +1623,12 @@ void initSkybox() {
     }
     cout << "Successfully built the pipeline program SkyBox." << endl;
 
-    skyBox.numVertices =14;
-    skyBox.numElements =30;
+    skyBox.numVertices = 14;
+    skyBox.numElements = 36;
     float width = 150.0f, tall = 0.0f;
     float positions[42] = { width,width + tall,-width,width,width + tall,width,
-        width,tall+width,-width,-width,tall + width,-width,-width,tall + width,width,width,tall + width,width,width,tall + width,-width,
-        width,tall-width,-width,-width,tall - width,-width,-width,tall - width,width,width,tall - width,width,width,tall - width,-width,
+        width,tall + width,-width,-width,tall + width,-width,-width,tall + width,width,width,tall + width,width,width,tall + width,-width,
+        width,tall - width,-width,-width,tall - width,-width,-width,tall - width,width,width,tall - width,width,width,tall - width,-width,
         width,tall - width,-width ,width,tall - width,width
     };
     float texCoord[28] = { 0.25f,1.0f,0.5f,1.0f,
@@ -1552,11 +1651,11 @@ void initSkybox() {
     skyBox.vao->ConnectPipelineProgramAndVBOAndShaderVariable(skyBox.pipelineProgram, skyBox.vboVertices, "position");
     skyBox.vao->ConnectPipelineProgramAndVBOAndShaderVariable(skyBox.pipelineProgram, skyBox.vboTexCoord, "texCoord");
     glGenTextures(1, &skyBox.texHandle);
-    initTexture("texture/skyBoxDessert.jpg", skyBox.texHandle);
+    initTexture("texture/skyboxUniverse.jpg", skyBox.texHandle);
 }
 
 // Initialize the roller coaster status and camera status
-void setDefaultRollerCamera(){
+void setDefaultRollerCamera() {
     rollerPos = splinePoints[0];
     rollerTangent = cameraFocus = splineTangent[0];
     rollerNormal = cameraUp = splineNormal[0];
@@ -1565,7 +1664,7 @@ void setDefaultRollerCamera(){
     cameraEye = rollerPos + 0.1f * cameraUp;
 
     // The speed is 0 at the begining
-    rollerSpeed=0.0;
+    rollerSpeed = 0.0;
 }
 
 void initScene(int argc, char* argv[])
@@ -1577,22 +1676,22 @@ void initScene(int argc, char* argv[])
     glEnable(GL_DEPTH_TEST);
 
     // Set light property
-    sunLight.La=glm::vec4(1.0f,1.0f,1.0f,1.0f); 
-    sunLight.Ld=glm::vec4(1.0f,1.0f,1.0f,1.0f);
-    sunLight.Ls=glm::vec4(1.0f,1.0f,1.0f,1.0f);
-    sunLight.lightDirection=glm::vec3(0.0f,1.0f,0.0f); // Suppose the sun is far away
+    sunLight.La = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    sunLight.Ld = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    sunLight.Ls = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+    sunLight.lightDirection = glm::vec3(0.0f, 1.0f, 0.0f); // Suppose the sun is far away
 
     // Wood material
-    wood.ka=glm::vec4(0.3f, 0.3f, 0.3f, 1.0f); // mesh ambient
-    wood.kd=glm::vec4(0.8f, 0.8f, 0.8f, 1.0f); // mesh diffuse
-    wood.ks=glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh specular
-    wood.alpha=20.0f; // shininess
+    wood.ka = glm::vec4(0.3f, 0.3f, 0.3f, 1.0f); // mesh ambient
+    wood.kd = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f); // mesh diffuse
+    wood.ks = glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh specular
+    wood.alpha = 20.0f; // shininess
 
     // Metal material
-    metal.ka=glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
-    metal.kd=glm::vec4(0.4f, 0.4f, 0.4f, 1.0f); // mesh diffuse
-    metal.ks=glm::vec4(0.9f, 0.9f, 0.9f, 1.0f); // mesh specular
-    metal.alpha=15.0f; // shininess
+    metal.ka = glm::vec4(0.2f, 0.2f, 0.2f, 1.0f); // mesh ambient
+    metal.kd = glm::vec4(0.4f, 0.4f, 0.4f, 1.0f); // mesh diffuse
+    metal.ks = glm::vec4(0.9f, 0.9f, 0.9f, 1.0f); // mesh specular
+    metal.alpha = 15.0f; // shininess
 
     initSpline();
 
@@ -1601,6 +1700,8 @@ void initScene(int argc, char* argv[])
     initRailTie();
 
     initRailSupport();
+
+    initRollerCoaster();
 
     initGround();
 
