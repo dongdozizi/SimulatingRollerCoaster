@@ -1370,6 +1370,91 @@ void initRailSupport() {
         }
     }
 
+    // Generate the connection between support and rail 
+    for (int i = 0; i < railSupport.count; i++) {
+        float dM = (1.0f * i + 0.5f) * railSupport.space;
+        int cntM = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM) - pointDisHorizon.begin();
+        glm::vec3 pl = railSupport.points[i] - 0.5f * rail.width * splineBinormal[cntM];
+        glm::vec3 pr = railSupport.points[i] + 0.5f * rail.width * splineBinormal[cntM];
+        glm::vec3 dl = railSupport.points[i] - 0.5f * railSupport.width * railSupport.binormal[i];
+        glm::vec3 dr = railSupport.points[i] + 0.5f * railSupport.width * railSupport.binormal[i];
+        vector<glm::vec3> p(8);
+        glm::vec3 pCenter;
+        pCenter = railSupport.hexagon[i][2];
+        float yLow, yHigh;
+
+        yHigh= max(pl.y, pr.y) + 0.5f * rail.width;
+
+        if (splineNormal[cntM].y < 0.0f) {
+            dl.y = dr.y = max(pl.y, pr.y) + 0.5f * rail.width;
+            pl += 0.5f * rail.heightT * railSupport.upVec;
+            pr += 0.5f * rail.heightT * railSupport.upVec;
+            p[0] = dl - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            p[1] = dr - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            p[2] = dr + 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            p[3] = dl + 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            for (int j = 0; j < 4; j++) {
+                p[j] += 0.5f * railSupport.lengthSide * railSupport.upVec;
+                p[j + 4] = p[j] - 0.5f * railSupport.lengthSide * railSupport.upVec;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+
+            for (int j = 0; j < 4; j++) {
+                p[j] = p[j + 4] = pl + 0.5f*dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j].y = dl.y;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+
+            for (int j = 0; j < 4; j++) {
+                p[j] = p[j + 4] = pr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j].y = dl.y;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+        }
+        else {
+            dl.y = dr.y = min(pl.y, pr.y) - 0.5f * rail.width;
+            pl -= 0.5f * rail.heightT * railSupport.upVec;
+            pr -= 0.5f * rail.heightT * railSupport.upVec;
+            p[0] = dl - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            p[1] = dr - 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            p[2] = dr + 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            p[3] = dl + 0.5f * railSupport.lengthSide * railSupport.tangent[i];
+            for (int j = 0; j < 4; j++) {
+                p[j] += 0.5f * railSupport.lengthSide * railSupport.upVec;
+                p[j + 4] = p[j] - 0.5f * railSupport.lengthSide * railSupport.upVec;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+
+            for (int j = 0; j < 4; j++) {
+                p[j] = p[j + 4] = pl + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j+4].y = dl.y;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+
+            for (int j = 0; j < 4; j++) {
+                p[j] = p[j + 4] = pr + 0.5f * dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - 0.5f * dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+                p[j+4].y = dl.y;
+            }
+            addCuboid(p, positions, normals, texCoord, elements);
+        }
+
+        yLow = ground.height + railSupport.heightBase + railSupport.heightBetween * railSupport.supportCount[1][i];
+        pCenter = railSupport.hexagon[i][2];
+        for (int j = 0; j < 4; j++) {
+            glm::vec3 tmpP = pCenter + dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+            p[j] = glm::vec3(tmpP.x, yHigh, tmpP.z);
+            p[j + 4] = glm::vec3(tmpP.x, yLow, tmpP.z);
+        }
+        addCuboid(p, positions, normals, texCoord, elements);
+        pCenter = railSupport.hexagon[i][3];
+        for (int j = 0; j < 4; j++) {
+            glm::vec3 tmpP = pCenter + dxyRect[j][0] * railSupport.lengthSide * railSupport.binormal[i] - dxyRect[j][1] * railSupport.lengthSide * railSupport.tangent[i];
+            p[j] = glm::vec3(tmpP.x, yHigh, tmpP.z);
+            p[j + 4] = glm::vec3(tmpP.x, yLow, tmpP.z);
+        }
+        addCuboid(p, positions, normals, texCoord, elements);
+    }
+
     railSupport.numVertices = positions.size() / 3;
     railSupport.numElements = elements.size();
 
