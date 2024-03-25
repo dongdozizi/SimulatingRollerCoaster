@@ -60,7 +60,7 @@ vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
 int renderType = 1;
-bool enableCameraMov = false; // true when enable moving camera
+float g = 0.98; // Gravity constant
 
 float lastTime = 0.0; // last time render the window
 float rollerMinSpeed = 5.0; // minimum speed when start the roller coaster
@@ -71,7 +71,9 @@ glm::vec3 rollerTangent; // tangent vector
 glm::vec3 rollerBinormal; // binormal vector
 glm::vec3 rollerNormal; // normal vector
 
-float camMaxSpeed = 2.0; // minimum speed when moving camera (per second not per frame)
+int cameraType = 1; // 1: On the roller coaster. 2: Look at the roller coaster. 3: Leave the roller coaster
+float camMaxSpeed = 3.0; // minimum speed when moving camera (per second not per frame)
+float cameraOffSet = 0.15f; // The offset of camera from the rail
 glm::vec2 camSpeed(0.0f, 0.0f); // Speed of camera when enable moving camera
 glm::vec3 cameraEye; // camera position
 glm::vec3 cameraFocus; // focus vector
@@ -120,8 +122,8 @@ struct ThreeDimensionObject {
     VBO* vboVertices = nullptr; // VBO of vertices
     VBO* vboTexCoord = nullptr; // VBO of texture coordinates
     VBO* vboNormals = nullptr; // VBO of normals
-    EBO* ebo = nullptr; // EBO of the object
     VAO* vao = nullptr; // VAO
+    EBO* ebo = nullptr; // EBO of the object
 };
 
 // Rail properties
@@ -155,11 +157,17 @@ struct RailSupport : ThreeDimensionObject {
     glm::vec3 upVec = glm::vec3(0.0f, 1.0f, 0.0f); // The up vector
 }railSupport;
 
-struct RollerCoaster {
-    ThreeDimensionObject head;
-    vector<ThreeDimensionObject> body;
-    float height;
-    float length;
+struct RollerCoaster:ThreeDimensionObject {
+    vector<EBO*> ebos; // EBO of the object
+    vector<int> elements; // number of elements of each EBO 
+    vector<GLuint> texHandles; // The texture handle of the object
+    int numVerticesHead;
+    int numVerticesBody;
+    int bodyCount = 4;
+    float space=0.05f;
+    float height=0.1f;
+    float length=0.2f;
+    float distance = 0.0f; // Then distance roller coaster go
 }rollerCoaster;
 
 // Ground properties
@@ -171,9 +179,9 @@ struct Ground : ThreeDimensionObject {
 
 // Skybox properties
 struct SkyBox : ThreeDimensionObject{
-    float height = -1.0f;
-    float width = 200.0f;
-    float length = 200.0f;
+    vector<EBO*> ebos; // EBO of the object
+    vector<int> elements; // number of elements of each EBO 
+    vector<GLuint> texHandles; // The texture handle of the object
 }skyBox;
 
 // Spline property
@@ -188,6 +196,7 @@ vector<int> uPosVec; // record the start position of each spline.
 vector<glm::vec3> splineTangent; // Tangent of the spline
 vector<glm::vec3> splineNormal; // Normal of Spline
 vector<glm::vec3> splineBinormal; // Binormal of Spline
+float hMax; // The maximum value of height
 
 // Represents one spline control point.
 struct Point {
@@ -543,17 +552,21 @@ void keyboardFunc(unsigned char key, int x, int y) {
         camSpeed[1] = min(camSpeed[1] + 0.5f, 1.0f);
         break;
 
-    case 'v': //Enable Moving the camera
-        camSpeed[0] = camSpeed[1] = 0.0;
-        if (enableCameraMov) {
-            cameraFocus = rollerTangent;
-            enableCameraMov = false;
-        }
-        else {
-            cameraFocus = glm::vec3(-1.0f, 0.0f, 0.0f);
+    case '1':
+        cameraType = 1;
+        break;
+
+    case '2':
+        cameraType = 2;
+        break;
+
+    case '3': //Enable Moving the camera
+        if (cameraType != 3) {
+            camSpeed[0] = camSpeed[1] = 0.0;
             cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-            enableCameraMov = true;
+            cameraFocus = glm::normalize(glm::vec3(cameraFocus.x, 0.0f, cameraFocus.z));
         }
+        cameraType = 3;
         break;
 
     case ' ': // Start or Stop the roller coaster
@@ -572,7 +585,7 @@ void keyboardFunc(unsigned char key, int x, int y) {
 void modifyFocusAndCamera(float timeInterval, glm::vec3 cameraUp) {
 
     // Moving the camera
-    if (enableCameraMov) {
+    if (cameraType==3) {
         glm::vec3 verticalVec(-cameraFocus[2], 0, cameraFocus[0]);
         cameraEye += camMaxSpeed * timeInterval * (camSpeed[0] * cameraFocus + camSpeed[1] * verticalVec);
     }
@@ -587,35 +600,51 @@ void modifyFocusAndCamera(float timeInterval, glm::vec3 cameraUp) {
     cameraFocus = glm::vec3(transformMat * glm::vec4(cameraFocus, 0.0f));
 }
 
-void calculateNewCameraRoller() {
+void calculateNewCameraRoller(float deltaT) {
 
-    rollerU = rollerU + 0.001 * rollerSpeed;
+    glm::vec4 uCalc;
+    float tmpU = rollerU - floor(rollerU);
+    uCalc = glm::vec4(3.0f * tmpU * tmpU, 2.0f * tmpU, 1.0f, 0.0f);
+    glm::vec3 dp = mulMatrix[floor(rollerU)] * uCalc;
+    if (rollerSpeed > 0.0f) {
+        cout << deltaT << " " << hMax << " " << rollerPos.y << " " << glm::length(dp) << " " << sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp) << "\n";
+        rollerU += deltaT * sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp);
+    }
+
     if (rollerU >= 1.0f * spline.numControlPoints) {
         rollerU -= 1.0f * spline.numControlPoints;
     }
     int splineCount = floor(rollerU);
-    float tmpU = rollerU - 1.0f * splineCount;
+    tmpU = rollerU - 1.0f * splineCount;
 
     // Use binary search to find the next u position
     int l = uPosVec[splineCount], r = uPosVec[splineCount + 1];
     int uPos = lower_bound(uVec.begin() + l, uVec.begin() + r, tmpU) - uVec.begin();
+    float uUp = uVec[uPos];
+    if (uPos == r) {
+        uUp = 1.0f;
+    }
+    rollerCoaster.distance = pointDistance[uPos] + (tmpU - uUp) / (uVec[uPos] - uVec[uPos - 1]) * (pointDistance[uPos] - pointDistance[uPos - 1]);
 
-    // Interpolate the position
+    // Calculate the position
     glm::vec3 rollerPosNew;
-    glm::vec4 uCalc(tmpU * tmpU * tmpU, tmpU * tmpU, tmpU, 1);
+    uCalc=glm::vec4(tmpU * tmpU * tmpU, tmpU * tmpU, tmpU, 1);
     rollerPosNew = mulMatrix[splineCount] * uCalc;
 
     glm::vec3 rollerTangentNew = splineTangent[uPos];
     glm::vec3 rollerNormalNew = splineNormal[uPos];
     glm::vec3 rollerBinormalNew = splineBinormal[uPos];
 
-    if (!enableCameraMov) {
+    if (cameraType!=3) {
         cameraUp = rollerNormalNew;
-        cameraEye = rollerPosNew + 0.1f * cameraUp;
+        cameraEye = rollerPosNew + cameraOffSet * cameraUp;
         cameraFocus = glm::dot(cameraFocus, rollerTangent) * rollerTangentNew +
             glm::dot(cameraFocus, rollerNormal) * rollerNormalNew +
             glm::dot(cameraFocus, rollerBinormal) * rollerBinormalNew;
         cameraFocus = glm::normalize(cameraFocus);
+        if (cameraType == 2) {
+            cameraEye -= 2.0f*rollerCoaster.length * cameraFocus;
+        }
     }
     rollerPos = rollerPosNew;
     rollerTangent = rollerTangentNew;
@@ -623,24 +652,8 @@ void calculateNewCameraRoller() {
     rollerBinormal = rollerBinormalNew;
 }
 
-void drawWithLight(ThreeDimensionObject object, Light light, Material material) {
-    // Get modelView matrix
-    float modelViewMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetMatrix(modelViewMatrix);
-
-    glm::vec3 viewLightDirection = glm::normalize(glm::vec3(glm::make_mat4(modelViewMatrix) * glm::vec4(light.lightDirection, 0.0f)));
-
-    // Get projection matrix
-    float projectionMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::Projection);
-    matrix.GetMatrix(projectionMatrix);
-
-    // Get normal matrix
-    float normalMatrix[16];
-    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-    matrix.GetNormalMatrix(normalMatrix);
-
+// Set the material, light and matrix
+void setWithLight(ThreeDimensionObject object, Light light, Material material,float modelViewMatrix[], float projectionMatrix[],float normalMatrix[],glm::vec3 viewLightDirection) {
     object.pipelineProgram->Bind();
     // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
     object.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
@@ -654,11 +667,14 @@ void drawWithLight(ThreeDimensionObject object, Light light, Material material) 
     object.pipelineProgram->SetUniformVariable4fv("kd", glm::value_ptr(material.kd));
     object.pipelineProgram->SetUniformVariable4fv("ks", glm::value_ptr(material.ks));
     object.pipelineProgram->SetUniformVariablef("alpha", material.alpha);
-    object.vao->Bind();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, object.texHandle);
-    glDrawElements(GL_TRIANGLES, object.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
+}
 
+// Set matrixs
+void setWithoutLight(ThreeDimensionObject object, float modelViewMatrix[], float projectionMatrix[]) {
+    object.pipelineProgram->Bind();
+    // Upload the modelview and projection matrices to the GPU. Note that these are "uniform" variables.
+    object.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+    object.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
 }
 
 void displayFunc()
@@ -688,46 +704,131 @@ void displayFunc()
     matrix.SetMatrixMode(OpenGLMatrix::ModelView);
     matrix.GetMatrix(modelViewMatrix);
 
+    glm::vec3 viewLightDirection = glm::normalize(glm::vec3(glm::make_mat4(modelViewMatrix) * glm::vec4(sunLight.lightDirection, 0.0f)));
+
     // Get projection matrix
     float projectionMatrix[16];
     matrix.SetMatrixMode(OpenGLMatrix::Projection);
     matrix.GetMatrix(projectionMatrix);
 
+    // Get normal matrix
+    float normalMatrix[16];
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+    matrix.GetNormalMatrix(normalMatrix);
+
     // Draw ground
-    ground.pipelineProgram->Bind();
-    ground.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    ground.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    setWithoutLight(ground, modelViewMatrix, projectionMatrix);
     ground.vao->Bind();
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, ground.texHandle);
     glDrawElements(GL_TRIANGLES, ground.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
 
     // Draw skybox
-    skyBox.pipelineProgram->Bind();
-    skyBox.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
-    skyBox.pipelineProgram->SetUniformVariableMatrix4fv("projectionMatrix", GL_FALSE, projectionMatrix);
+    setWithoutLight(skyBox, modelViewMatrix, projectionMatrix);
     skyBox.vao->Bind();
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, skyBox.texHandle);
-    glDrawElements(GL_TRIANGLES, skyBox.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
-
+    for (int i = 0; i < 6; i++) {
+        skyBox.ebos[i]->Bind();
+        glBindTexture(GL_TEXTURE_2D, skyBox.texHandles[i]);
+        glDrawElements(GL_TRIANGLES, skyBox.elements[i], GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
+    }
 
     // Draw rail
-    drawWithLight(rail, sunLight, metal);
+    setWithLight(rail, sunLight, metal, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
+    rail.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, rail.texHandle);
+    glDrawElements(GL_TRIANGLES, rail.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
 
-    // Draw rail tie;
-    drawWithLight(railTie, sunLight, wood);
+    // Draw rail tie
+    setWithLight(railTie, sunLight, wood, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
+    railTie.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, railTie.texHandle);
+    glDrawElements(GL_TRIANGLES, railTie.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
 
-    // Draw rail support;
-    drawWithLight(railSupport, sunLight, wood);
+    // Draw rail support
+    setWithLight(railSupport, sunLight, wood, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
+    railSupport.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, railSupport.texHandle);
+    glDrawElements(GL_TRIANGLES, railSupport.numElements, GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
+
+    // Draw roller coaster
+    matrix.PushMatrix();
+    matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+    glm::vec3 tmpRollerPos = rollerPos + 0.5f * rail.heightT * rollerNormal;
+    matrix.Translate(tmpRollerPos.x, tmpRollerPos.y, tmpRollerPos.z);
+    float rotateMatrix[16] = {
+        rollerTangent.x,rollerTangent.y,rollerTangent.z,0.0f,
+        rollerNormal.x,rollerNormal.y,rollerNormal.z,0.0f,
+        rollerBinormal.x,rollerBinormal.y,rollerBinormal.z,0.0f,
+        0.0f,0.0f,0.0f,1.0f
+    };
+    matrix.MultMatrix(rotateMatrix);
+    matrix.GetMatrix(modelViewMatrix);
+    matrix.PopMatrix();
+    setWithLight(rollerCoaster, sunLight, metal, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
+    rollerCoaster.vao->Bind();
+    glActiveTexture(GL_TEXTURE0);
+    for (int i = 0; i < 6; i++) {
+        rollerCoaster.ebos[i]->Bind();
+        glBindTexture(GL_TEXTURE_2D, rollerCoaster.texHandles[i]);
+        glDrawElements(GL_TRIANGLES, rollerCoaster.elements[i], GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
+    }
+    float bodyDistance = rollerCoaster.distance - 1.5f*rollerCoaster.length - rollerCoaster.space;
+    for (int i = 0; i < rollerCoaster.bodyCount;i++) {
+        if (bodyDistance < 0.0f) {
+            bodyDistance += splineLength;
+        }
+        int cnt=upper_bound(pointDistance.begin(),pointDistance.end(),bodyDistance)-pointDistance.begin()-1;
+        glm::vec3 bodyPoint;
+        if (cnt == pointDistance.size()) {
+            cnt--;
+            bodyPoint = splinePoints[cnt];
+        }
+        else if (cnt < 0) {
+            cnt = 0;
+            bodyPoint = splinePoints[cnt];
+        }
+        else {
+            bodyPoint = splinePoints[cnt] + (bodyDistance - pointDistance[cnt]) / (pointDistance[cnt + 1] - pointDistance[cnt]) * (splinePoints[cnt + 1] - splinePoints[cnt]);
+        }
+        bodyPoint += splineNormal[cnt] * 0.5f * rail.heightT;
+
+        matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+        matrix.PushMatrix();
+        matrix.Translate(bodyPoint.x, bodyPoint.y, bodyPoint.z);
+        float rotateMatrix[16] = {
+            splineTangent[cnt].x,splineTangent[cnt].y,splineTangent[cnt].z,0.0f,
+            splineNormal[cnt].x,splineNormal[cnt].y,splineNormal[cnt].z,0.0f,
+            splineBinormal[cnt].x,splineBinormal[cnt].y,splineBinormal[cnt].z,0.0f,
+            0.0f,0.0f,0.0f,1.0f
+        };
+        matrix.MultMatrix(rotateMatrix);
+        matrix.GetMatrix(modelViewMatrix);
+        matrix.GetNormalMatrix(normalMatrix);
+        matrix.PopMatrix();
+        rollerCoaster.pipelineProgram->SetUniformVariableMatrix4fv("modelViewMatrix", GL_FALSE, modelViewMatrix);
+        rollerCoaster.pipelineProgram->SetUniformVariableMatrix4fv("normalMatrix", GL_FALSE, normalMatrix);
+        rollerCoaster.vao->Bind();
+        glActiveTexture(GL_TEXTURE0);
+        for (int j = 6; j < 12; j++) {
+            rollerCoaster.ebos[j]->Bind();
+            glBindTexture(GL_TEXTURE_2D, rollerCoaster.texHandles[j]);
+            glDrawElements(GL_TRIANGLES, rollerCoaster.elements[j], GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
+        }
+        bodyDistance -= rollerCoaster.length + rollerCoaster.space;
+    }
 
     // At the end, generate new u and other vector.
-    calculateNewCameraRoller();
+    calculateNewCameraRoller(timeInterval);
 
     // Swap the double-buffers.
     glutSwapBuffers();
 }
 
+// draw spline using subdivide
 void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4x3 multMatrix, unsigned char depth) {
     // To make sure the depth of recursion not so deep.
     if (depth >= 30) return;
@@ -751,6 +852,7 @@ void subdivideDrawSpline(double u0, double u1, double maxLengthSquare, glm::mat4
     }
 }
 
+// Initialize the spline
 void initSpline() {
     // Initialize the Catmull-Rom Spline Matrix
     catmullMatrix = glm::mat4(-catmullS, 2 - catmullS, catmullS - 2, catmullS,
@@ -793,12 +895,14 @@ void initSpline() {
     splineNormal[0] = glm::normalize(glm::cross(splineBinormal[0], splineTangent[0]));
     pointDistance[0] = 0.0f;
     pointDisHorizon[0] = 0.0f;
+    hMax = splinePoints[0].x;
 
     // Calculate the following tangent, normal, binormal, distance by camera movement
     for (int i = 1, splineCount = 0; i < splinePoints.size(); i++) {
         if (uVec[i] == 0.0f) {
             splineCount++;
         }
+        hMax = max(hMax, splinePoints[i].y);
         splineTangent[i] = glm::normalize(glm::vec3(mulMatrix[splineCount] * glm::vec4(3.0f * uVec[i] * uVec[i], 2.0f * uVec[i], 1.0f, 0.0f)));
         splineNormal[i] = glm::normalize(glm::cross(splineBinormal[i - 1], splineTangent[i]));
         splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], splineNormal[i]));
@@ -806,6 +910,7 @@ void initSpline() {
         pointDisHorizon[i] = pointDisHorizon[i - 1] + glm::distance(glm::vec2(splinePoints[i - 1].x, splinePoints[i - 1].z), glm::vec2(splinePoints[i].x, splinePoints[i].z));
     }
 
+    hMax += 0.01f;
     splineLength = pointDistance[pointDistance.size() - 1];
     splineLengthHorizon = pointDisHorizon[pointDisHorizon.size() - 1];
     cout << "The total length of the roller coaster is " << splineLength << " m ,";
@@ -1164,17 +1269,17 @@ void initRailSupport() {
     for (int i = 0; i < railSupport.count; i++) {
         // Get the binormal and the center point of each position, here we assume up vector is (0,1,0)    
         float dL = (1.0f * i) * railSupport.space;
-        int cntL = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dL) - pointDisHorizon.begin();
+        int cntL = upper_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dL) - pointDisHorizon.begin()-1;
         glm::vec3 pCenterL = splinePoints[cntL] + (dL - pointDisHorizon[cntL]) / (pointDisHorizon[cntL + 1] - pointDisHorizon[cntL]) * (splinePoints[cntL + 1] - splinePoints[cntL]);
         glm::vec3 binormalL = glm::normalize(glm::cross(splineTangent[cntL], railSupport.upVec));
 
         float dM = (1.0f * i + 0.5f) * railSupport.space;
-        int cntM = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM) - pointDisHorizon.begin();
+        int cntM = upper_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dM) - pointDisHorizon.begin()-1;
         glm::vec3 pCenterM = splinePoints[cntM] + (dM - pointDisHorizon[cntM]) / (pointDisHorizon[cntM + 1] - pointDisHorizon[cntM]) * (splinePoints[cntM + 1] - splinePoints[cntM]);
         glm::vec3 binormalM = glm::normalize(glm::cross(splineTangent[cntM], railSupport.upVec));
 
         float dR = (1.0f * i + 1.0f) * railSupport.space;
-        int cntR = lower_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dR) - pointDisHorizon.begin();
+        int cntR = upper_bound(pointDisHorizon.begin(), pointDisHorizon.end(), dR) - pointDisHorizon.begin()-1;
         glm::vec3 pCenterR = splinePoints[cntR] + (dR - pointDisHorizon[cntR]) / (pointDisHorizon[cntR + 1] - pointDisHorizon[cntR]) * (splinePoints[cntR + 1] - splinePoints[cntR]);
         glm::vec3 binormalR = glm::normalize(glm::cross(splineTangent[cntR], railSupport.upVec));
 
@@ -1572,7 +1677,112 @@ void initRailSupport() {
 
 // Init the roller coaster
 void initRollerCoaster() {
+    rollerCoaster.pipelineProgram = new PipelineProgram(); // Load and set up the pipeline program, including its shaders.
+    // Load and set up the pipeline program, including its shaders.
+    if (rollerCoaster.pipelineProgram->BuildShadersFromFiles(shaderBasePath, "vertexShaderRail.glsl", "fragmentShaderRail.glsl") != 0) {
+        cout << "Failed to build the pipeline program Rail Support." << endl;
+        throw 1;
+    }
+    cout << "Successfully built the pipeline program Rail Support." << endl;
 
+    rollerCoaster.numVertices = 48;
+    glm::vec3 cubePoints[8];
+    cubePoints[0] = glm::vec3(-1.0f * rollerCoaster.length, 1.0f * rollerCoaster.height, 0.5f * rail.width);
+    cubePoints[1] = cubePoints[0] + glm::vec3(rollerCoaster.length, 0.0f, 0.0f);
+    cubePoints[2] = cubePoints[1] + glm::vec3(0.0f, 0.0f, -rail.width);
+    cubePoints[3] = cubePoints[0] + glm::vec3(0.0f, 0.0f, -rail.width);
+    cubePoints[4] = cubePoints[0] + glm::vec3(0.0f, -rollerCoaster.height, 0.0f);
+    cubePoints[5] = cubePoints[1] + glm::vec3(1.0f * rollerCoaster.length, -rollerCoaster.height, 0.0f);
+    cubePoints[6] = cubePoints[2] + glm::vec3(1.0f * rollerCoaster.length, -rollerCoaster.height, 0.0f);
+    cubePoints[7] = cubePoints[3] + glm::vec3(0.0f, -rollerCoaster.height, 0.0f);
+
+    float dxyTC[8] = { 0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f };
+    unsigned int dxyE[6][4] = { {3,2,1,0},
+        {4,7,3,0},{7,6,2,3},{6,5,1,2},{5,4,0,1},
+        {4,5,6,7}
+    };
+    int dxyT[6] = { 0,1,2,0,2,3 };
+
+    vector<float> positions;
+    vector<float> normals;
+    vector<float> texCoord;
+    vector<unsigned int> elements;
+
+    for (int i = 0; i < 6; i++) {
+        glm::vec3 normal = glm::normalize(glm::cross(cubePoints[dxyE[i][0]] - cubePoints[dxyE[i][1]], cubePoints[dxyE[i][2]] - cubePoints[dxyE[i][1]]));
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+                positions.push_back(cubePoints[dxyE[i][j]][k]);
+                normals.push_back(normal[k]);
+            }
+        }
+        for (int j = 0; j < 8; j++) {
+            texCoord.push_back(dxyTC[j]);
+        }
+        for (int j = 0; j < 6; j++) {
+            elements.push_back(i * 4 + dxyT[j]);
+        }
+    }
+
+    cubePoints[0] = glm::vec3(-0.5f * rollerCoaster.length, 1.0f * rollerCoaster.height, 0.5f * rail.width);
+    cubePoints[1] = cubePoints[0] + glm::vec3(rollerCoaster.length, 0.0f, 0.0f);
+    cubePoints[2] = cubePoints[1] + glm::vec3(0.0f, 0.0f, -rail.width);
+    cubePoints[3] = cubePoints[0] + glm::vec3(0.0f, 0.0f, -rail.width);
+    cubePoints[4] = cubePoints[0] + glm::vec3(0.0f, -rollerCoaster.height, 0.0f);
+    cubePoints[5] = cubePoints[1] + glm::vec3(0.0f, -rollerCoaster.height, 0.0f);
+    cubePoints[6] = cubePoints[2] + glm::vec3(0.0f, -rollerCoaster.height, 0.0f);
+    cubePoints[7] = cubePoints[3] + glm::vec3(0.0f, -rollerCoaster.height, 0.0f);
+
+    for (int i = 0; i < 6; i++) {
+        glm::vec3 normal = glm::normalize(glm::cross(cubePoints[dxyE[i][0]] - cubePoints[dxyE[i][1]], cubePoints[dxyE[i][2]] - cubePoints[dxyE[i][1]]));
+        
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+                positions.push_back(cubePoints[dxyE[i][j]][k]);
+                normals.push_back(normal[k]);
+            }
+        }
+        for (int j = 0; j < 8; j++) {
+            texCoord.push_back(dxyTC[j]);
+        }
+        for (int j = 0; j < 6; j++) {
+            elements.push_back(24 + i * 4 + dxyT[j]);
+        }
+    }
+
+    rollerCoaster.vao = new VAO();
+    rollerCoaster.vao->Bind();
+    rollerCoaster.vboVertices = new VBO(rollerCoaster.numVertices, 3, positions.data(), GL_STATIC_DRAW);
+    rollerCoaster.vboTexCoord = new VBO(rollerCoaster.numVertices, 2, texCoord.data(), GL_STATIC_DRAW);
+    rollerCoaster.vboNormals = new VBO(rollerCoaster.numVertices, 3, normals.data(), GL_STATIC_DRAW);
+
+    rollerCoaster.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rollerCoaster.pipelineProgram, rollerCoaster.vboVertices, "position");
+    rollerCoaster.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rollerCoaster.pipelineProgram, rollerCoaster.vboTexCoord, "texCoord");
+    rollerCoaster.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rollerCoaster.pipelineProgram, rollerCoaster.vboNormals, "normal");
+    rollerCoaster.ebos.resize(12);
+    rollerCoaster.elements.resize(12);
+    rollerCoaster.texHandles.resize(12);
+
+    // Add head
+    char s[6][4] = { "py","nx","pz","px","nz","ny" };
+    for (int i = 0; i < 6; i++) {
+        rollerCoaster.elements[i] = 6;
+        rollerCoaster.ebos[i] = new EBO(rollerCoaster.elements[i], elements.data() + i * 6, GL_STATIC_DRAW);
+        glGenTextures(1, &rollerCoaster.texHandles[i]);
+        char path[50];
+        sprintf(path, "texture/skyboxCity/%s.jpg", s[i]);
+        initTexture(path, rollerCoaster.texHandles[i]);
+    }
+
+    // Add body
+    for (int i = 6; i < 12; i++) {
+        rollerCoaster.elements[i] = 6;
+        rollerCoaster.ebos[i] = new EBO(rollerCoaster.elements[i], elements.data() + i * 6, GL_STATIC_DRAW);
+        glGenTextures(1, &rollerCoaster.texHandles[i]);
+        char path[50];
+        sprintf(path, "texture/skyboxCity/%s.jpg", s[i-6]);
+        initTexture(path, rollerCoaster.texHandles[i]);
+    }
 }
 
 // Initialize the ground
@@ -1623,35 +1833,59 @@ void initSkybox() {
     }
     cout << "Successfully built the pipeline program SkyBox." << endl;
 
-    skyBox.numVertices = 14;
+    skyBox.numVertices = 24;
     skyBox.numElements = 36;
-    float width = 150.0f, tall = 0.0f;
-    float positions[42] = { width,width + tall,-width,width,width + tall,width,
-        width,tall + width,-width,-width,tall + width,-width,-width,tall + width,width,width,tall + width,width,width,tall + width,-width,
-        width,tall - width,-width,-width,tall - width,-width,-width,tall - width,width,width,tall - width,width,width,tall - width,-width,
-        width,tall - width,-width ,width,tall - width,width
+    glm::vec3 cubePoints[8];
+    cubePoints[0] = glm::vec3(-0.5f * ground.width, ground.height + 0.5f * ground.width, 0.5f * ground.width);
+    cubePoints[1] = cubePoints[0] + glm::vec3(ground.width, 0.0f, 0.0f);
+    cubePoints[2] = cubePoints[1] - glm::vec3(0.0f, 0.0f, ground.width);
+    cubePoints[3] = cubePoints[0] - glm::vec3(0.0f, 0.0f, ground.width);
+    for (int i = 0; i < 4; i++) cubePoints[i + 4] = cubePoints[i] - glm::vec3(0.0f, ground.width, 0.0f);
+
+    float dxyTC[8] = { 0.0f,0.0f,1.0f,0.0f,1.0f,1.0f,0.0f,1.0f };
+    unsigned int dxyE[6][4] = { {3,2,1,0},
+        {4,7,3,0},{7,6,2,3},{6,5,1,2},{5,4,0,1},
+        {4,5,6,7}
     };
-    float texCoord[28] = { 0.25f,1.0f,0.5f,1.0f,
-        0.0f,2.0f / 3.0f,0.25f,2.0f / 3.0f,0.5f,2.0f / 3.0f,0.75f,2.0f / 3.0f,1.0f,2.0f / 3.0f,
-        0.0f,1.0f / 3.0f,0.25f,1.0f / 3.0f,0.5f,1.0f / 3.0f,0.75f,1.0f / 3.0f,1.0f,1.0f / 3.0f,
-        0.25f,0.0f,0.5f,0.0f
-    };
-    unsigned int elements[36] = { 0,1,4,0,4,3,
-        8,7,2,8,2,3,9,8,3,9,3,4,10,9,4,10,4,5,11,10,5,11,5,6,
-        8,9,13,8,13,12
-    };
-    int posP = 0, posT = 0;
+    int dxyT[6] = { 0,1,2,0,2,3 };
+
+    vector<float> positions;
+    vector<float> texCoord;
+    vector<unsigned int> elements;
+
+    for (int i = 0; i < 6; i++) {
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+                positions.push_back(cubePoints[dxyE[i][j]][k]);
+            }
+        }
+        for (int j = 0; j < 8; j++) {
+            texCoord.push_back(dxyTC[j]);
+        }
+        for (int j = 0; j < 6; j++) {
+            elements.push_back(i * 4 + dxyT[j]);
+        }
+    }
 
     skyBox.vao = new VAO();
     skyBox.vao->Bind();
-    skyBox.vboVertices = new VBO(skyBox.numVertices, 3, positions, GL_STATIC_DRAW);
-    skyBox.vboTexCoord = new VBO(skyBox.numVertices, 2, texCoord, GL_STATIC_DRAW);
+    skyBox.vboVertices = new VBO(skyBox.numVertices, 3, positions.data(), GL_STATIC_DRAW);
+    skyBox.vboTexCoord = new VBO(skyBox.numVertices, 2, texCoord.data(), GL_STATIC_DRAW);
 
-    skyBox.ebo = new EBO(skyBox.numElements, elements, GL_STATIC_DRAW);
     skyBox.vao->ConnectPipelineProgramAndVBOAndShaderVariable(skyBox.pipelineProgram, skyBox.vboVertices, "position");
     skyBox.vao->ConnectPipelineProgramAndVBOAndShaderVariable(skyBox.pipelineProgram, skyBox.vboTexCoord, "texCoord");
-    glGenTextures(1, &skyBox.texHandle);
-    initTexture("texture/skyboxUniverse.jpg", skyBox.texHandle);
+    skyBox.ebos.resize(6);
+    skyBox.elements.resize(6);
+    skyBox.texHandles.resize(6);
+    char s[6][4] = { "py","nx","pz","px","nz","ny" };
+    for (int i = 0; i < 6; i++) {
+        skyBox.elements[i] = 6;
+        skyBox.ebos[i] = new EBO(skyBox.elements[i], elements.data() + i * 6, GL_STATIC_DRAW);
+        glGenTextures(1, &skyBox.texHandles[i]);
+        char path[50];
+        sprintf(path,"texture/skyboxUniverse/%s.jpg", s[i]);
+        initTexture(path, skyBox.texHandles[i]);
+    }
 }
 
 // Initialize the roller coaster status and camera status
@@ -1661,7 +1895,7 @@ void setDefaultRollerCamera() {
     rollerNormal = cameraUp = splineNormal[0];
 
     // offset of camera
-    cameraEye = rollerPos + 0.1f * cameraUp;
+    cameraEye = rollerPos + cameraOffSet * cameraUp;
 
     // The speed is 0 at the begining
     rollerSpeed = 0.0;
