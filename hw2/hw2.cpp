@@ -43,6 +43,8 @@ char shaderBasePath[1024] = "../openGLHelper";
 
 using namespace std;
 
+float PI = acos(-1); // PI=3.1415926535....
+
 int mousePos[2] = { -1,-1 }; // x,y screen coordinates of the current mouse position
 
 int leftMouseButton = 0; // 1 if pressed, 0 if not 
@@ -209,6 +211,8 @@ struct Spline {
     Point* points;
 } spline;
 
+vector<float> splineUp;
+
 int frameCount = 0;
 double lastTimeSave = 0; // last time when saving images
 double lastTimeFps = 0; // last time when calculating fps;
@@ -264,6 +268,31 @@ void loadSpline(char* argv)
             printf("Error: incorrect number of control points in file %s.\n", argv);
             exit(1);
         }
+    }
+}
+
+void loadSplineUp(char* argv)
+{
+    FILE* fileUp = fopen(argv, "r");
+    if (fileUp == NULL)
+    {
+        printf("Cannot open file %s.\n", argv);
+        exit(1);
+    }
+
+    // Load the control points.
+    for (int i = 0; i < spline.numControlPoints; i++)
+    {
+        float tmp;
+        if (fscanf(fileUp, "%f\n", &tmp) != 1)
+        {
+            printf("Error: incorrect number of control points in file %s.\n", argv);
+            exit(1);
+        }
+        splineUp.push_back(tmp);
+    }
+    if (splineUp.size()) {
+        splineUp.push_back(splineUp[0]);
     }
 }
 
@@ -603,18 +632,19 @@ void modifyFocusAndCamera(float timeInterval, glm::vec3 cameraUp) {
 void calculateNewCameraRoller(float deltaT) {
 
     glm::vec4 uCalc;
+    int splineCount = floor(rollerU);
     float tmpU = rollerU - floor(rollerU);
     uCalc = glm::vec4(3.0f * tmpU * tmpU, 2.0f * tmpU, 1.0f, 0.0f);
     glm::vec3 dp = mulMatrix[floor(rollerU)] * uCalc;
     if (rollerSpeed > 0.0f) {
-        cout << deltaT << " " << hMax << " " << rollerPos.y << " " << glm::length(dp) << " " << sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp) << "\n";
-        rollerU += deltaT * sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp);
+//        cout << deltaT << " " << hMax << " " << rollerPos.y << " " << glm::length(dp) << " " << sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp) << "\n";
+        rollerU += deltaT * sqrt(2 * g * (hMax - rollerPos.y)) / (glm::length(dp));
     }
 
     if (rollerU >= 1.0f * spline.numControlPoints) {
         rollerU -= 1.0f * spline.numControlPoints;
     }
-    int splineCount = floor(rollerU);
+    splineCount = floor(rollerU);
     tmpU = rollerU - 1.0f * splineCount;
 
     // Use binary search to find the next u position
@@ -767,6 +797,7 @@ void displayFunc()
     };
     matrix.MultMatrix(rotateMatrix);
     matrix.GetMatrix(modelViewMatrix);
+    matrix.GetNormalMatrix(normalMatrix);
     matrix.PopMatrix();
     setWithLight(rollerCoaster, sunLight, metal, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
     rollerCoaster.vao->Bind();
@@ -891,23 +922,50 @@ void initSpline() {
     pointDisHorizon.resize(splinePoints.size());
 
     splineTangent[0] = glm::normalize(glm::vec3(mulMatrix[0] * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
-    splineBinormal[0] = glm::normalize(glm::cross(splineTangent[0], glm::vec3(0.0f, 1.0f, 0.0f))); // Initially looking up
+    if (splineUp.size()) {
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+        up = glm::rotate(up, splineUp[0]*PI*2.0f, glm::normalize(glm::vec3(splineTangent[0].x, 0.0f, splineTangent[0].z)));
+        splineBinormal[0] = glm::normalize(glm::cross(splineTangent[0], up));
+    }
+    else{
+        splineBinormal[0] = glm::normalize(glm::cross(splineTangent[0], glm::vec3(0.0f, 1.0f, 0.0f))); // Initially looking up    
+    }
     splineNormal[0] = glm::normalize(glm::cross(splineBinormal[0], splineTangent[0]));
     pointDistance[0] = 0.0f;
     pointDisHorizon[0] = 0.0f;
     hMax = splinePoints[0].x;
+    
+    // Calculate the distance by camera movement
+    for (int i = 1; i < splinePoints.size(); i++) {
+        pointDistance[i] = pointDistance[i - 1] + glm::distance(splinePoints[i - 1], splinePoints[i]);
+        pointDisHorizon[i] = pointDisHorizon[i - 1] + glm::distance(glm::vec2(splinePoints[i - 1].x, splinePoints[i - 1].z), glm::vec2(splinePoints[i].x, splinePoints[i].z));
+    }
 
-    // Calculate the following tangent, normal, binormal, distance by camera movement
+    // Calculate the following tangent, normal, binormal, 
     for (int i = 1, splineCount = 0; i < splinePoints.size(); i++) {
         if (uVec[i] == 0.0f) {
             splineCount++;
         }
         hMax = max(hMax, splinePoints[i].y);
         splineTangent[i] = glm::normalize(glm::vec3(mulMatrix[splineCount] * glm::vec4(3.0f * uVec[i] * uVec[i], 2.0f * uVec[i], 1.0f, 0.0f)));
-        splineNormal[i] = glm::normalize(glm::cross(splineBinormal[i - 1], splineTangent[i]));
-        splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], splineNormal[i]));
-        pointDistance[i] = pointDistance[i - 1] + glm::distance(splinePoints[i - 1], splinePoints[i]);
-        pointDisHorizon[i] = pointDisHorizon[i - 1] + glm::distance(glm::vec2(splinePoints[i - 1].x, splinePoints[i - 1].z), glm::vec2(splinePoints[i].x, splinePoints[i].z));
+        if (splineUp.size()) {
+            glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+            float ratio,interpolateRotate;
+            if (uVec[i] == 0.0f) {
+                interpolateRotate = splineUp[splineCount];
+            }
+            else {
+                ratio = (pointDistance[i] - pointDistance[uPosVec[splineCount]]) / (pointDistance[uPosVec[splineCount + 1]] - pointDistance[uPosVec[splineCount]]);
+                interpolateRotate = (splineUp[splineCount] * (1 - ratio) + ratio * splineUp[splineCount + 1]);
+            }
+            up = glm::rotate(up, interpolateRotate * PI * 2.0f, glm::normalize(glm::vec3(splineTangent[i].x, 0.0f, splineTangent[i].z)));
+            splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], up));
+            splineNormal[i]= glm::normalize(glm::cross(splineBinormal[i], splineTangent[i]));
+        }
+        else {
+            splineNormal[i] = glm::normalize(glm::cross(splineBinormal[i - 1], splineTangent[i]));
+            splineBinormal[i] = glm::normalize(glm::cross(splineTangent[i], splineNormal[i]));
+        }
     }
 
     hMax += 0.01f;
@@ -1952,12 +2010,16 @@ int main(int argc, char* argv[])
 
     if (argc < 2)
     {
-        printf("Usage: %s <spline file>\n", argv[0]);
+        printf("Usage: %s <spline file> or %s <spline file> <spline up vector file>\n", argv[0]);
         exit(0);
     }
 
     // Load spline from the provided filename.
     loadSpline(argv[1]);
+
+    if (argc == 3) {
+        loadSplineUp(argv[2]);
+    }
 
     printf("Loaded spline with %d control point(s).\n", spline.numControlPoints);
 
