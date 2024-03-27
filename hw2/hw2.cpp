@@ -62,7 +62,7 @@ vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
 int renderType = 1;
-float g = 0.075; // Gravity constant
+float g = 0.98; // Gravity constant
 
 float lastTime = 0.0; // last time render the window
 float rollerMinSpeed = 5.0; // minimum speed when start the roller coaster
@@ -637,7 +637,7 @@ void calculateNewCameraRoller(float deltaT) {
     uCalc = glm::vec4(3.0f * tmpU * tmpU, 2.0f * tmpU, 1.0f, 0.0f);
     glm::vec3 dp = mulMatrix[floor(rollerU)] * uCalc;
     if (rollerSpeed > 0.0f) {
-//        cout << deltaT << " " << hMax << " " << rollerPos.y << " " << glm::length(dp) << " " << sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp) << "\n";
+        cout << deltaT << " " << hMax << " " << rollerPos.y << " " << glm::length(dp) << " " << sqrt(2 * g * (hMax - rollerPos.y)) / glm::length(dp) << "\n";
         rollerU += deltaT * sqrt(2 * g * (hMax - rollerPos.y)) / (glm::length(dp));
     }
 
@@ -933,7 +933,7 @@ void initSpline() {
     splineNormal[0] = glm::normalize(glm::cross(splineBinormal[0], splineTangent[0]));
     pointDistance[0] = 0.0f;
     pointDisHorizon[0] = 0.0f;
-    hMax = splinePoints[0].x;
+    hMax = splinePoints[0].y;
     
     // Calculate the distance by camera movement
     for (int i = 1; i < splinePoints.size(); i++) {
@@ -968,7 +968,7 @@ void initSpline() {
         }
     }
 
-    hMax += 0.01f;
+    hMax += 0.1f;
     splineLength = pointDistance[pointDistance.size() - 1];
     splineLengthHorizon = pointDisHorizon[pointDisHorizon.size() - 1];
     cout << "The total length of the roller coaster is " << splineLength << " m ,";
