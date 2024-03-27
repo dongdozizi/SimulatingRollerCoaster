@@ -62,7 +62,7 @@ vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
 int renderType = 1;
-float g = 0.098; // Gravity constant
+float g = 0.075; // Gravity constant
 
 float lastTime = 0.0; // last time render the window
 float rollerMinSpeed = 5.0; // minimum speed when start the roller coaster
@@ -113,9 +113,9 @@ struct Material {
     glm::vec4 kd; // Mesh diffuse
     glm::vec4 ks; // Mesh specular
     float alpha; // Shininess
-}metal, wood;
+}metal, wood, train;
 
-// 3D object class
+// 3D object struct
 struct ThreeDimensionObject {
     PipelineProgram* pipelineProgram = nullptr; // pipeline program
     int numVertices; // number of vertices
@@ -237,7 +237,7 @@ void saveScreenshot(const char* filename)
 void autoSave() {
     if (screenShotCounter <= 999) {
         char filename[40];
-        sprintf(filename, "../Examples/Heightmap-%04d.jpg", ++screenShotCounter);
+        sprintf(filename, "../animations/%03d.jpg", ++screenShotCounter);
         saveScreenshot(filename);
     }
 }
@@ -382,7 +382,7 @@ void idleFunc()
     double currentTime = glutGet(GLUT_ELAPSED_TIME) * 0.001;
 
     double timeInterval = currentTime - lastTimeSave;
-    if (timeInterval > 0.1f) {
+    if (timeInterval > 1.0f/15.0f) {
         cout << "Current time is : " << currentTime << "\n";
         cout << "Camera ";
         cout << " | cameraUp     "; for (int i = 0; i < 3; i++) cout << cameraUp[i] << " "; cout << " ";
@@ -799,7 +799,7 @@ void displayFunc()
     matrix.GetMatrix(modelViewMatrix);
     matrix.GetNormalMatrix(normalMatrix);
     matrix.PopMatrix();
-    setWithLight(rollerCoaster, sunLight, metal, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
+    setWithLight(rollerCoaster, sunLight, train, modelViewMatrix, projectionMatrix, normalMatrix, viewLightDirection);
     rollerCoaster.vao->Bind();
     glActiveTexture(GL_TEXTURE0);
     for (int i = 0; i < 6; i++) {
@@ -807,7 +807,7 @@ void displayFunc()
         glBindTexture(GL_TEXTURE_2D, rollerCoaster.texHandles[i]);
         glDrawElements(GL_TRIANGLES, rollerCoaster.elements[i], GL_UNSIGNED_INT, 0); // Render the VAO, by using element array, size is "numElements", starting from vertex 0.
     }
-    float bodyDistance = rollerCoaster.distance - 1.5f*rollerCoaster.length - rollerCoaster.space;
+    float bodyDistance = rollerCoaster.distance - 1.0f*rollerCoaster.length - rollerCoaster.space;
     for (int i = 0; i < rollerCoaster.bodyCount;i++) {
         if (bodyDistance < 0.0f) {
             bodyDistance += splineLength;
@@ -1081,7 +1081,7 @@ void initRailStandardDoubleT() {
     rail.vao->ConnectPipelineProgramAndVBOAndShaderVariable(rail.pipelineProgram, rail.vboTexCoord, "texCoord");
     rail.ebo = new EBO(rail.numElements, elements, GL_STATIC_DRAW); //Bind the EBO
     glGenTextures(1, &rail.texHandle);
-    initTexture("texture/metal.jpg", rail.texHandle);
+    initTexture("texture/blueSteel.jpg", rail.texHandle);
     free(positions);
     free(elements);
     free(texCoord);
@@ -1730,7 +1730,7 @@ void initRailSupport() {
     railSupport.vao->ConnectPipelineProgramAndVBOAndShaderVariable(railSupport.pipelineProgram, railSupport.vboTexCoord, "texCoord");
     railSupport.ebo = new EBO(railSupport.numElements, elements.data(), GL_STATIC_DRAW); //Bind the EBO
     glGenTextures(1, &railSupport.texHandle);
-    initTexture("texture/wood.jpg", railSupport.texHandle);
+    initTexture("texture/whiteWood.jpg", railSupport.texHandle);
 }
 
 // Init the roller coaster
@@ -1766,21 +1766,26 @@ void initRollerCoaster() {
     vector<float> texCoord;
     vector<unsigned int> elements;
 
-    for (int i = 0; i < 6; i++) {
-        glm::vec3 normal = glm::normalize(glm::cross(cubePoints[dxyE[i][0]] - cubePoints[dxyE[i][1]], cubePoints[dxyE[i][2]] - cubePoints[dxyE[i][1]]));
-        for (int j = 0; j < 4; j++) {
-            for (int k = 0; k < 3; k++) {
-                positions.push_back(cubePoints[dxyE[i][j]][k]);
-                normals.push_back(normal[k]);
-            }
-        }
-        for (int j = 0; j < 8; j++) {
-            texCoord.push_back(dxyTC[j]);
-        }
-        for (int j = 0; j < 6; j++) {
-            elements.push_back(i * 4 + dxyT[j]);
-        }
-    }
+    //for (int i = 0; i < 6; i++) {
+    //    glm::vec3 normal = glm::normalize(glm::cross(cubePoints[dxyE[i][0]] - cubePoints[dxyE[i][1]], cubePoints[dxyE[i][2]] - cubePoints[dxyE[i][1]]));
+    //    for (int j = 0; j < 4; j++) {
+    //        for (int k = 0; k < 3; k++) {
+    //            positions.push_back(cubePoints[dxyE[i][j]][k]);
+    //            normals.push_back(normal[k]);
+    //        }
+    //    }
+    //    for (int j = 0; j < 8; j++) {
+    //        if ((i == 2 && j == 4) || (i == 4 && j == 6)) {
+    //            texCoord.push_back(0.5f);
+    //        }
+    //        else {
+    //            texCoord.push_back(dxyTC[j]);
+    //        }
+    //    }
+    //    for (int j = 0; j < 6; j++) {
+    //        elements.push_back(i * 4 + dxyT[j]);
+    //    }
+    //}
 
     cubePoints[0] = glm::vec3(-0.5f * rollerCoaster.length, 1.0f * rollerCoaster.height, 0.5f * rail.width);
     cubePoints[1] = cubePoints[0] + glm::vec3(rollerCoaster.length, 0.0f, 0.0f);
@@ -1808,6 +1813,22 @@ void initRollerCoaster() {
         }
     }
 
+    for (int i = 0; i < 6; i++) {
+        glm::vec3 normal = glm::normalize(glm::cross(cubePoints[dxyE[i][0]] - cubePoints[dxyE[i][1]], cubePoints[dxyE[i][2]] - cubePoints[dxyE[i][1]]));
+        for (int j = 0; j < 4; j++) {
+            for (int k = 0; k < 3; k++) {
+                positions.push_back(cubePoints[dxyE[i][j]][k]);
+                normals.push_back(normal[k]);
+            }
+        }
+        for (int j = 0; j < 8; j++) {
+            texCoord.push_back(dxyTC[j]);
+        }
+        for (int j = 0; j < 6; j++) {
+            elements.push_back(i * 4 + dxyT[j]);
+        }
+    }
+
     rollerCoaster.vao = new VAO();
     rollerCoaster.vao->Bind();
     rollerCoaster.vboVertices = new VBO(rollerCoaster.numVertices, 3, positions.data(), GL_STATIC_DRAW);
@@ -1828,7 +1849,7 @@ void initRollerCoaster() {
         rollerCoaster.ebos[i] = new EBO(rollerCoaster.elements[i], elements.data() + i * 6, GL_STATIC_DRAW);
         glGenTextures(1, &rollerCoaster.texHandles[i]);
         char path[50];
-        sprintf(path, "texture/skyboxCity/%s.jpg", s[i]);
+        sprintf(path, "texture/newYorkMTA/%s.jpg", s[i]);
         initTexture(path, rollerCoaster.texHandles[i]);
     }
 
@@ -1838,7 +1859,7 @@ void initRollerCoaster() {
         rollerCoaster.ebos[i] = new EBO(rollerCoaster.elements[i], elements.data() + i * 6, GL_STATIC_DRAW);
         glGenTextures(1, &rollerCoaster.texHandles[i]);
         char path[50];
-        sprintf(path, "texture/skyboxCity/%s.jpg", s[i-6]);
+        sprintf(path, "texture/newYorkMTA/%s.jpg", s[i-6]);
         initTexture(path, rollerCoaster.texHandles[i]);
     }
 }
@@ -1984,6 +2005,12 @@ void initScene(int argc, char* argv[])
     metal.kd = glm::vec4(0.4f, 0.4f, 0.4f, 1.0f); // mesh diffuse
     metal.ks = glm::vec4(0.9f, 0.9f, 0.9f, 1.0f); // mesh specular
     metal.alpha = 15.0f; // shininess
+
+    // Train material
+    train.ka = glm::vec4(0.4f, 0.4f, 0.4f, 1.0f); // mesh ambient
+    train.kd = glm::vec4(0.8f, 0.8f, 0.8f, 1.0f); // mesh diffuse
+    train.ks = glm::vec4(0.9f, 0.9f, 0.9f, 1.0f); // mesh specular
+    train.alpha = 15.0f; // shininess
 
     initSpline();
 
