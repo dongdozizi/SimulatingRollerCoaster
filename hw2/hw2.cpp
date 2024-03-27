@@ -62,7 +62,7 @@ vector<glm::mat4x3> mulMatrix; // Mult matrix vector for every curve
 
 int screenShotCounter = 0;
 int renderType = 1;
-float g = 0.98; // Gravity constant
+float g = 0.098; // Gravity constant
 
 float lastTime = 0.0; // last time render the window
 float rollerMinSpeed = 5.0; // minimum speed when start the roller coaster
