@@ -7,6 +7,12 @@ In this assignment, we use Catmull-Rom splines along with OpenGL core profile sh
 
 ![Overview](HW2_Overview.jpg)
 
+![SceneElement](SceneElements.jpg)
+
+![TShaped](HW2_Tshaped.jpg)
+
+![CollideDetect](CollideDetect.jpg)
+
 ## Core Credit Features
 
 1. Uses OpenGL core profile, version 3.2 or higher - Y
