@@ -1,12 +1,11 @@
-Subject 	: CSCI420 - Computer Graphics 
-Assignment 2: Simulating a Roller Coaster
-Author		: Shidong Zhang
-USC ID 		: 6673881701
+# Simulating a Roller Coaster - Shidong Zhang
 
-Description: In this assignment, we use Catmull-Rom splines along with OpenGL core profile shader-based texture mapping and Phong shading to create a roller coaster simulation.
+## Description
+In this assignment, we use Catmull-Rom splines along with OpenGL core profile shader-based texture mapping and Phong shading to create a roller coaster simulation.
 
-Core Credit Features: (Answer these Questions with Y/N; you can also insert comments as appropriate)
-======================
+## Results
+
+## Core Credit Features
 
 1. Uses OpenGL core profile, version 3.2 or higher - Y
 
@@ -27,8 +26,7 @@ Core Credit Features: (Answer these Questions with Y/N; you can also insert comm
 
 7. Attached this ReadMe File - Y
 
-Extra Credit Features: (Answer these Questions with Y/N; you can also insert comments as appropriate)
-======================
+## Extra Credit Features
 
 1. Render a T-shaped rail cross section - Y
 	Render a double T-shaped rail
@@ -75,7 +73,8 @@ Extra Credit Features: (Answer these Questions with Y/N; you can also insert com
 12. Derive the steps that lead to the physically realistic equation of updating u - Y
 	See pdf
 
-Additional Features: (Please document any additional features you may have implemented other than the ones described above)
+## Additional Features
+
 1. Rendered roller coaster with texture and light it up with phong shading, the count can be changed in bodyCount in the RollerCoaster struct.
 
 2. Achieve collision detection in generating the support structure, which is the support of a higher rail cannot collide with lower rail with same x,z coordinates, there is a picture shown in CollideDetect.jpg.
@@ -99,23 +98,16 @@ Additional Features: (Please document any additional features you may have imple
       		EBO* ebo = nullptr; // EBO of the object
   	};
 
-Open-Ended Problems: (Please document approaches to any open-ended problems that you have tackled)
-1. To solve the collision detection problem, I separate the rail to several pieces and each bounded with an rectangle box and it's heights, so the collision detection transformed into the collision between rectangle.
-2. 
-3.
+## Open-Ended Problems
 
-Keyboard/Mouse controls: (Please document Keyboard/Mouse controls if any)
+1. To solve the collision detection problem, I separate the rail to several pieces and each bounded with an rectangle box and it's heights, so the collision detection transformed into the collision between rectangle.
+
+## Keyboard/Mouse controls
+
 1. Move\stop the roller coaster: Press space '  ', initially the roller coaster are freezed unless press space ' ' to let it move.
 2. Change the view type:
 	'1'  : On the roller coaster. 
 	'2  :  Look at the roller coaster. 
 	'3' :  Free view.
 3. Move in free view mode: 'w','a','s','d'.
-
-Names of the .cpp files you made changes to:
-1. hw2.cpp
-2. pipelineProgram.cpp
-3.
-
-Comments : (If any)
 
