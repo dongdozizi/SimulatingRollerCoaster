@@ -5,6 +5,8 @@ In this assignment, we use Catmull-Rom splines along with OpenGL core profile sh
 
 ## Results
 
+Youtube link: https://www.youtube.com/shorts/_bupNbt5Yus
+
 ![Overview](HW2_Overview.jpg)
 
 ![SceneElement](SceneElements.jpg)
