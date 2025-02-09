@@ -5,19 +5,19 @@ The project is to use Catmull-Rom splines along with OpenGL core profile shader-
 
 ## Features
 
-  Double T-shaped rail
+ - Double T-shaped rail
 
-  Support wooden structure
+ - Support wooden structure
 
-  sky-box
+ - sky-box
 
-  Generate track from several sequences of splines
+ - Generate track from several sequences of splines
 
-  Draw splines using recursive subdivision
+ - Draw splines using recursive subdivision
 
-  Modify velocity with which the camera moves
+ - Modify velocity with which the camera moves
 
-  Rendered roller coaster with texture
+ - Rendered roller coaster with texture
 
 ## Keyboard/Mouse controls
 
