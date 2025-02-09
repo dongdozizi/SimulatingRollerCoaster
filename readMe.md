@@ -1,7 +1,7 @@
 # Simulating a Roller Coaster
 
 ## Description
-In this project, we use Catmull-Rom splines along with OpenGL core profile shader-based texture mapping and Phong shading to create a roller coaster simulation.
+The project is to use Catmull-Rom splines along with OpenGL core profile shader-based texture mapping and Phong shading to create a roller coaster simulation.
 
 ## Results
 
